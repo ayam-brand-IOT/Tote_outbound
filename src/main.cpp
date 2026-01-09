@@ -78,9 +78,9 @@ void setup() {
   for (auto &b : buttons) b.button.begin();
 
   controller.init();
-  controller.setUpWiFi(U_SSID, U_PASS, "tote-inbound");
+  controller.setUpWiFi(U_SSID, U_PASS, "tote-outbound");
   controller.connectToWiFi(/* web_server */ true, /* web_serial */ true, /* OTA */ true);
-  controller.wifi.addToteIDcallback(&setToteID);
+  controller.wifi.addToteIDcallback(&setToteIdFromUI);
 
   xTaskCreatePinnedToCore(communicationTask, "communicationTask", 12000, NULL, 1, &detached_task, 0);
 
@@ -255,16 +255,22 @@ void onIceFilling() {
 void onWaitingToteID() {
   static uint32_t lastPrompt = 0;
   
-  // Mostrar prompt cada 2 segundos
-  if (millis() - lastPrompt > 2000) {
-    Serial.println("Waiting for Tote ID...");
-    Serial.println("Fish: " + String(tote.fish_kg) + " kg");
-    Serial.println("Ice: " + String(tote.ice_out_kg) + " kg");
-    Serial.println("Water: " + String(tote.water_out_kg) + " kg");
+  // Mostrar prompt cada 3 segundos
+  if (millis() - lastPrompt > 3000) {
+    Serial.println("\n╔════════════════════════════════════╗");
+    Serial.println("║   WAITING FOR TOTE ID FROM UI      ║");
+    Serial.println("╠════════════════════════════════════╣");
+    Serial.println("║ Fish:  " + String(tote.fish_kg) + " kg");
+    Serial.println("║ Ice:   " + String(tote.ice_out_kg) + " kg");
+    Serial.println("║ Water: " + String(tote.water_out_kg) + " kg");
+    Serial.println("╠════════════════════════════════════╣");
+    Serial.println("║ Enter Tote ID via web interface   ║");
+    Serial.println("╚════════════════════════════════════╝\n");
     lastPrompt = millis();
   }
   
   // La transición a COMPLETED se hace desde setToteIdFromUI
+  // que valida el ID contra el backend antes de aceptarlo
 }
 
 void onToteReady() {
@@ -332,7 +338,7 @@ void initStage3() {
 }
 
 void destroyStage1() {
-  const uint32_t ice_out_kg = controller.getWeight();
+  const uint32_t ice_out_kg = controller.getWeight() - tote.fish_kg;
   Serial.print("Ice dispensed: ");
   Serial.print(ice_out_kg);
   Serial.println(" kg");
@@ -346,7 +352,7 @@ void destroyStage1() {
 }
 
 void destroyStage2() {
-  const uint32_t water_out_kg = controller.getWeight();
+  const uint32_t water_out_kg = controller.getWeight() - tote.fish_kg - tote.ice_out_kg;
 
   Serial.print("Water filled: ");
   Serial.print(water_out_kg);
@@ -376,8 +382,24 @@ void destroyStage3() {
   Serial.println(" kg");
   Serial.println("==================\n");
   
-  // TODO: Aquí enviar datos al backend
-  // sendToteDataToBackend(tote);
+  // Enviar datos al backend con PUT
+  // Nota: temp_out se puede medir o dejar en 0 por ahora
+  float temp_out = 0.0; // TODO: implementar lectura de temperatura si hay sensor
+  
+  bool success = updateToteInBackend(
+    tote.id,
+    tote.fish_kg,
+    tote.ice_out_kg,
+    tote.water_out_kg,
+    temp_out
+  );
+  
+  if (success) {
+    Serial.println("✓ Tote data sent to backend successfully!");
+  } else {
+    Serial.println("✗ Failed to send tote data to backend");
+    Serial.println("  Data will be lost. Please check backend connection.");
+  }
   
   // Reset the tare
   controller.setTare();
@@ -490,14 +512,137 @@ bool setToteIdFromUI(const String& toteId) {
     return false;
   }
 
+  // Validar que el ID exista en el backend
+  Serial.print("Validating Tote ID '");
+  Serial.print(toteId);
+  Serial.println("' with backend...");
+  
+  if (!validateToteIDFromBackend(toteId)) {
+    Serial.println("ERROR: Tote ID not found in backend!");
+    Serial.println("Please check the ID and try again.");
+    return false;
+  }
+  
+  Serial.println("Tote ID validated successfully!");
+
   // Copiar ID al struct tote
   memset(tote.id, 0, sizeof(tote.id));
   toteId.substring(0, sizeof(tote.id)-1).toCharArray(tote.id, sizeof(tote.id));
 
-  Serial.print("Tote ID received: ");
+  Serial.print("Tote ID set to: ");
   Serial.println(tote.id);
 
   // Transición a COMPLETED
   toteState = ToteState::COMPLETED;
   return true;
+}
+
+// ==================== Backend API Functions ====================
+
+bool validateToteIDFromBackend(const String& toteId) {
+  if (!controller.isWiFiConnected()) {
+    Serial.println("WiFi not connected, cannot validate ID");
+    return false;
+  }
+
+  HTTPClient http;
+  String url = String(BACKEND_URL) + "/api/totes/" + toteId;
+  
+  Serial.print("GET: ");
+  Serial.println(url);
+  
+  http.begin(url);
+  http.setTimeout(5000); // 5 seconds timeout
+  
+  int httpCode = http.GET();
+  
+  if (httpCode > 0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpCode);
+    
+    if (httpCode == 200) {
+      String payload = http.getString();
+      Serial.println("Tote found in backend");
+      
+      // Parse JSON response
+      DynamicJsonDocument doc(1024);
+      DeserializationError error = deserializeJson(doc, payload);
+      
+      if (!error) {
+        const char* id = doc["tote"]["tote_id"];
+        Serial.print("Backend confirmed tote ID: ");
+        Serial.println(id);
+      }
+      
+      http.end();
+      return true;
+    }
+    else if (httpCode == 404) {
+      Serial.println("Tote ID not found (404)");
+      http.end();
+      return false;
+    }
+  }
+  else {
+    Serial.print("HTTP GET failed, error: ");
+    Serial.println(http.errorToString(httpCode).c_str());
+  }
+  
+  http.end();
+  return false;
+}
+
+bool updateToteInBackend(const char* toteId, uint32_t fish_kg, uint32_t ice_out_kg, uint32_t water_out_kg, float temp_out) {
+  if (!controller.isWiFiConnected()) {
+    Serial.println("WiFi not connected, cannot update backend");
+    return false;
+  }
+
+  HTTPClient http;
+  String url = String(BACKEND_URL) + "/api/totes/" + String(toteId);
+  
+  Serial.println("\n=== Updating Backend ===");
+  Serial.print("PUT: ");
+  Serial.println(url);
+  
+  // Create JSON payload
+  DynamicJsonDocument doc(256);
+  doc["fish_kg"] = fish_kg;
+  doc["ice_out_kg"] = ice_out_kg;
+  doc["water_out_kg"] = water_out_kg;
+  doc["temp_out"] = temp_out;
+  
+  String jsonPayload;
+  serializeJson(doc, jsonPayload);
+  
+  Serial.print("Payload: ");
+  Serial.println(jsonPayload);
+  
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(10000); // 10 seconds timeout
+  
+  int httpCode = http.PUT(jsonPayload);
+  
+  if (httpCode > 0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpCode);
+    
+    String response = http.getString();
+    Serial.print("Response: ");
+    Serial.println(response);
+    
+    if (httpCode == 200) {
+      Serial.println("Backend updated successfully!");
+      http.end();
+      return true;
+    }
+  }
+  else {
+    Serial.print("HTTP PUT failed, error: ");
+    Serial.println(http.errorToString(httpCode).c_str());
+  }
+  
+  http.end();
+  return false;
 }

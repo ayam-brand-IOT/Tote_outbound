@@ -42,6 +42,11 @@
 // #define U_SSID "CFPP (Test)"
 // #define U_PASS "cfpptest"
 
+// ##################### BACKEND API #####################
+#define BACKEND_HOST "192.168.100.10"  // Cambiar a la IP del backend
+#define BACKEND_PORT 3000
+#define BACKEND_URL "http://" BACKEND_HOST ":3000"
+
 // ##################### WEB SERVER #####################
 
 #define SSID_SIZE 32
