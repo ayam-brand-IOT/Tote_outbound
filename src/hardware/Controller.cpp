@@ -1,11 +1,9 @@
 #include "Controller.h"
 
-byte mac[] = MAC_ADDRESS;
-IPAddress ip(CLIENT_IP);
-IPAddress gateway(CLIENT_GATEWAY);
-IPAddress subnet(SUBNET_ADDRESS);
-
-MarelClient marel(SERVER_IP, SERVER_PORT, mac, ip, gateway, subnet);
+// Configuración Modbus RTU para RS-485
+// Pines: RX=IO18 (U1RXD), TX=IO17 (U1TXD), DE/RE=IO8 (RS485_RTS)
+// Slave ID = 1 (según el simulador)
+MarelClient marel(1, 18, 17, 8);
 
 
 void Controller::init(){
@@ -13,6 +11,11 @@ void Controller::init(){
   // setUpI2C();
   setUpDevice();
   // setUpRTC();
+  marel.begin();  // Inicializar Modbus RTU
+}
+
+void Controller::task() {
+  marel.task();  // Procesar comunicación Modbus
 }
 
 void Controller::setUpIOS(){
@@ -77,7 +80,7 @@ bool Controller::setTare(){
 }
 
 float Controller::getWeight(){
-  float weight = marel.getWeightKg(); // p.ej. "0.00" o "76.4"
+  float weight = marel.getNetWeightKg(); // p.ej. "0.00" o "76.4" (peso neto = bruto - tara)
   DEBUG_M(("Raw Weight: " + String(weight)).c_str());
 
   if (isnan(weight)) {

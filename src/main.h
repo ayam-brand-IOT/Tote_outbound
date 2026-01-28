@@ -4,6 +4,7 @@
 #include "hardware/Controller.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "websocket_client.h"
 
 void onStop();
 void onStart();
@@ -35,3 +36,6 @@ void communicationTask(void* pvParameters);
 // Backend API functions
 bool validateToteIDFromBackend(const String& toteId);
 bool updateToteInBackend(const char* toteId, uint32_t fish_kg, uint32_t ice_out_kg, uint32_t water_out_kg, float temp_out);
+
+// WebSocket message handler
+void onWebSocketMessage(String type, JsonDocument& doc);

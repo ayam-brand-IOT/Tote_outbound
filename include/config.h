@@ -5,6 +5,10 @@
 
 #define MIN_WEIGHT 5
 
+// #################### DISPENSING TARGETS ####################
+#define TARGET_ICE_KG 2.0    // Peso objetivo de hielo en kg
+#define TARGET_WATER_KG 2.0  // Peso objetivo de agua en kg
+
 // ###################### INPUTS ######################
 #define START_IO                DI_0
 #define STOP_IO                 DI_1
@@ -19,15 +23,13 @@
 
 
 // #################### MAREL - INFO ####################
-// Datos del servidor Marel
-#define SERVER_PORT             5200
-#define SERVER_IP               "192.168.1.7"
-#define CLIENT_IP               {192, 168, 1, 29}
-#define CLIENT_GATEWAY          {192, 168, 1, 254}       
-#define MAC_ADDRESS             { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }
+// Modbus RTU configuration for RS-485
+#define MAREL_SLAVE_ID          1           // Slave ID del Modbus
+#define MAREL_RX_PIN            18          // GPIO18 (U1RXD)
+#define MAREL_TX_PIN            17          // GPIO17 (U1TXD)
+#define MAREL_DE_RE_PIN         8           // GPIO8 (RS485_RTS)
 
-
-//Configuración de red
+//Configuración de red WiFi
 #define HAS_STATIC_IP                               //TURN ON THE STATIC IP
 #define IP_ADDRESS { 192, 168, 100, 29 }
 #define GATEWAY_ADDRESS { 192, 168, 1, 254 }
@@ -36,16 +38,20 @@
 //TURN ON THE STATIC IP
 
 
-#define U_SSID "MFP-Guest24"
-#define U_PASS "testing123"
+// #define U_SSID "MFP-Guest24"
+// #define U_PASS "testing123"
+
+#define U_SSID "Pez Gordo"
+#define U_PASS "SardinaMacarena2021"
 
 // #define U_SSID "CFPP (Test)"
 // #define U_PASS "cfpptest"
 
 // ##################### BACKEND API #####################
-#define BACKEND_HOST "192.168.100.10"  // Cambiar a la IP del backend
+#define BACKEND_HOST "192.168.100.62"  // IP del backend
 #define BACKEND_PORT 3000
-#define BACKEND_URL "http://" BACKEND_HOST ":3000"
+#define BACKEND_WS_PORT 3001
+#define BACKEND_URL "http://192.168.100.62:3000"
 
 // ##################### WEB SERVER #####################
 

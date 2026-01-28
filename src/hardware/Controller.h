@@ -68,6 +68,7 @@ public:
     WIFI wifi;
 
     void init();
+    void task();  // Procesar tareas del Modbus
     bool setTare();
     void setUpRTC();
     
