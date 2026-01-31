@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <ModbusRTU.h>
 
-// Direcciones Modbus según el simulador
+// Modbus addresses according to simulator
 // Holding Registers (40001-41020)
 #define REG_DISPLAY_WEIGHT_LOW      0      // 40001
 #define REG_DISPLAY_WEIGHT_HIGH     1      // 40002
@@ -25,40 +25,40 @@ struct WeightReading {
 
 class MarelClient {
 public:
-    // Constructor para Modbus RTU
+    // Constructor for Modbus RTU
     MarelClient(uint8_t slaveID, uint8_t rxPin, uint8_t txPin, uint8_t dePin);
 
-    // Inicializa el Modbus RTU
+    // Initialize Modbus RTU
     void begin();
 
-    // Procesar tareas Modbus (llamar en loop)
+    // Process Modbus tasks (call in loop)
     void task();
 
-    // ¿Está conectado? (para Modbus RTU siempre devuelve true si está inicializado)
+    // Is connected? (for Modbus RTU always returns true if initialized)
     bool isConnected();
 
-    // Leer peso bruto en kg
+    // Read gross weight in kg
     float getWeightKg();
 
-    // Leer peso neto en kg
+    // Read net weight in kg
     float getNetWeightKg();
 
-    // Leer valor de tara en kg
+    // Read tare value in kg
     float getTareKg();
 
-    // Establecer tara (escribe peso actual como tara)
+    // Set tare (writes current weight as tare)
     bool setTare();
 
-    // Limpiar tara
+    // Clear tare
     bool clearTare();
 
-    // Ejecutar comando Zero
+    // Execute Zero command
     bool setZero();
 
-    // Verificar si el peso está estable
+    // Check if weight is stable
     bool isWeightStable();
 
-    // Callback para respuesta de lectura
+    // Callback for read response
     bool cbRead(Modbus::ResultCode event, uint16_t transactionId, void* data);
 
 private:
@@ -69,15 +69,15 @@ private:
     uint8_t _dePin;
     bool _initialized;
 
-    // Buffers para lecturas
+    // Buffers for readings
     uint16_t _weightRegs[2];
     uint16_t _netWeightRegs[2];
     uint16_t _tareRegs[2];
     bool _readComplete;
     
-    // Convierte dos registros uint16_t a float
+    // Convert two uint16_t registers to float
     float registersToFloat(uint16_t low, uint16_t high);
     
-    // Convierte float a dos registros uint16_t
+    // Convert float to two uint16_t registers
     void floatToRegisters(float value, uint16_t &low, uint16_t &high);
 };

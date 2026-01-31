@@ -11,14 +11,14 @@ MarelClient::MarelClient(uint8_t slaveID, uint8_t rxPin, uint8_t txPin, uint8_t 
 }
 
 void MarelClient::begin() {
-    // Configurar Serial1 para Modbus RTU en los pines especificados
+    // Configure Serial1 for Modbus RTU on specified pins
     Serial1.begin(9600, SERIAL_8N1, _rxPin, _txPin);
     
-    // Configurar pin DE/RE
+    // Configure DE/RE pin
     pinMode(_dePin, OUTPUT);
-    digitalWrite(_dePin, LOW);  // Modo recepción por defecto
+    digitalWrite(_dePin, LOW);  // Reception mode by default
     
-    // Inicializar Modbus como Master
+    // Initialize Modbus as Master
     _mb.begin(&Serial1, _dePin);
     _mb.master();
     
@@ -53,13 +53,13 @@ void MarelClient::floatToRegisters(float value, uint16_t &low, uint16_t &high) {
 float MarelClient::getWeightKg() {
     if (!_initialized) return 0.0;
     
-    // Leer registros 2-3 (Gross Weight)
+    // Read registers 2-3 (Gross Weight)
     if (!_mb.readHreg(_slaveID, REG_GROSS_WEIGHT_LOW, _weightRegs, 2)) {
         Serial.println("Error: Failed to queue read request for weight");
         return 0.0;
     }
     
-    // Esperar respuesta (timeout 1 segundo)
+    // Wait for response (1 second timeout)
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();
@@ -74,13 +74,13 @@ float MarelClient::getWeightKg() {
 float MarelClient::getNetWeightKg() {
     if (!_initialized) return 0.0;
     
-    // Leer registros 4-5 (Net Weight)
+    // Read registers 4-5 (Net Weight)
     if (!_mb.readHreg(_slaveID, REG_NET_WEIGHT_LOW, _netWeightRegs, 2)) {
         Serial.println("Error: Failed to queue read request for net weight");
         return 0.0;
     }
     
-    // Esperar respuesta
+    // Wait for response
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();
@@ -95,13 +95,13 @@ float MarelClient::getNetWeightKg() {
 float MarelClient::getTareKg() {
     if (!_initialized) return 0.0;
     
-    // Leer registros 6-7 (Tare Value)
+    // Read registers 6-7 (Tare Value)
     if (!_mb.readHreg(_slaveID, REG_TARE_VALUE_LOW, _tareRegs, 2)) {
         Serial.println("Error: Failed to queue read request for tare");
         return 0.0;
     }
     
-    // Esperar respuesta
+    // Wait for response
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();
@@ -116,13 +116,13 @@ bool MarelClient::setTare() {
     
     Serial.println("Executing TARE command...");
     
-    // Escribir coil 1002 (COIL_TARE) = true
+    // Write coil 1002 (COIL_TARE) = true
     if (!_mb.writeCoil(_slaveID, COIL_TARE, true)) {
         Serial.println("Error: Failed to queue TARE command");
         return false;
     }
     
-    // Esperar confirmación
+    // Wait for confirmation
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();
@@ -138,13 +138,13 @@ bool MarelClient::clearTare() {
     
     Serial.println("Executing CLEAR TARE command...");
     
-    // Escribir coil 1003 (COIL_CLEAR_TARE) = true
+    // Write coil 1003 (COIL_CLEAR_TARE) = true
     if (!_mb.writeCoil(_slaveID, COIL_CLEAR_TARE, true)) {
         Serial.println("Error: Failed to queue CLEAR TARE command");
         return false;
     }
     
-    // Esperar confirmación
+    // Wait for confirmation
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();
@@ -160,13 +160,13 @@ bool MarelClient::setZero() {
     
     Serial.println("Executing ZERO command...");
     
-    // Escribir coil 1000 (COIL_ZERO) = true
+    // Write coil 1000 (COIL_ZERO) = true
     if (!_mb.writeCoil(_slaveID, COIL_ZERO, true)) {
         Serial.println("Error: Failed to queue ZERO command");
         return false;
     }
     
-    // Esperar confirmación
+    // Wait for confirmation
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();
@@ -182,13 +182,13 @@ bool MarelClient::isWeightStable() {
     
     bool stable = false;
     
-    // Leer coil 1 (COIL_WEIGHT_STABLE)
+    // Read coil 1 (COIL_WEIGHT_STABLE)
     if (!_mb.readCoil(_slaveID, COIL_WEIGHT_STABLE, &stable, 1)) {
         Serial.println("Error: Failed to queue read for weight stable flag");
         return false;
     }
     
-    // Esperar respuesta
+    // Wait for response
     unsigned long start = millis();
     while (_mb.slave() && (millis() - start) < 1000) {
         _mb.task();

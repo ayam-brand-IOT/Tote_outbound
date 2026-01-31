@@ -1,56 +1,56 @@
-# Tote Inbound - Sistema de Control de Llenado de Totes
+# Tote Inbound - Tote Filling Control System
 
-Sistema embebido de control automático para el llenado de totes con agua y hielo, con integración a báscula Marel M2200 y comunicación con sistema Silo Stir para control de dispensación de hielo.
+Embedded automatic control system for filling totes with water and ice, with integration to Marel M2200 scale and communication with Silo Stir system for ice dispensing control.
 
-## 📋 Descripción General
+## 📋 General Description
 
-Este sistema controla el proceso automatizado de llenado de totes (contenedores) con cantidades precisas de agua y hielo. El sistema:
+This system controls the automated process of filling totes (containers) with precise amounts of water and ice. The system:
 
-- **Controla el llenado secuencial** de agua y hielo mediante una máquina de estados
-- **Se comunica con una báscula Marel M2200** vía Ethernet para mediciones de peso en tiempo real
-- **Envía comandos DOT a la máquina Silo Stir** para controlar la dispensación de hielo
-- **Registra datos** de cada tote (ID, peso de agua, peso de hielo, peso del tote) para envío a base de datos
-- **Proporciona interfaz web** para monitoreo y control remoto vía WiFi
-- **Soporta control manual** mediante botones físicos y comandos seriales
+- **Controls sequential filling** of water and ice through a state machine
+- **Communicates with a Marel M2200 scale** via Ethernet for real-time weight measurements
+- **Sends DOT commands to the Silo Stir machine** to control ice dispensing
+- **Records data** for each tote (ID, water weight, ice weight, tote weight) for database submission
+- **Provides web interface** for remote monitoring and control via WiFi
+- **Supports manual control** through physical buttons and serial commands
 
-## 🏗️ Arquitectura del Sistema
+## 🏭 System Architecture
 
 ### Hardware
 
-- **Microcontrolador**: ESP32 (EdgeBox ESP-100)
-- **Báscula**: Marel M2200 (Comunicación Ethernet)
-- **Interface Silo Stir**: Comandos DOT para control de hielo
-- **Entradas Digitales** (4):
-  - `DI_0`: Botón START
-  - `DI_1`: Botón STOP
-  - `DI_2`: Botón AGUA MANUAL
-  - `DI_3`: Botón HIELO MANUAL
+- **Microcontroller**: ESP32 (EdgeBox ESP-100)
+- **Scale**: Marel M2200 (Ethernet Communication)
+- **Silo Stir Interface**: DOT commands for ice control
+- **Digital Inputs** (4):
+  - `DI_0`: START Button
+  - `DI_1`: STOP Button
+  - `DI_2`: MANUAL WATER Button
+  - `DI_3`: MANUAL ICE Button
   
-- **Salidas Digitales** (3):
-  - `DO_0`: Control bomba de hielo (START)
-  - `DO_1`: Control bomba de hielo (STOP)
-  - `DO_2`: Control bomba de agua
+- **Digital Outputs** (3):
+  - `DO_0`: Ice pump control (START)
+  - `DO_1`: Ice pump control (STOP)
+  - `DO_2`: Water pump control
 
 ### Software
 
 - **Framework**: Arduino/PlatformIO
-- **Comunicación**: WiFi (AsyncWebServer + WebSockets), Ethernet (Marel)
-- **Scheduler**: TaskScheduler para tareas asíncronas
-- **OTA**: Actualización Over-The-Air habilitada
+- **Communication**: WiFi (AsyncWebServer + WebSockets), Ethernet (Marel)
+- **Scheduler**: TaskScheduler for asynchronous tasks
+- **OTA**: Over-The-Air update enabled
 
-## 🔄 Máquina de Estados
+## 🔄 State Machine
 
-### Estados del Controlador (ControllerState)
+### Controller States (ControllerState)
 
 ```dot
 digraph ControllerStates {
     rankdir=LR;
     node [shape=box, style=rounded];
     
-    IDLE [label="IDLE\n(Esperando inicio)", style="rounded,filled", fillcolor="#e1f5e1"];
-    WATER_FILLING [label="WATER_FILLING\n(Llenando agua)", style="rounded,filled", fillcolor="#e3f2fd"];
-    ICE_FILLING [label="ICE_FILLING\n(Llenando hielo)", style="rounded,filled", fillcolor="#fff3e0"];
-    TOTE_READY [label="TOTE_READY\n(Tote completo)", style="rounded,filled", fillcolor="#f3e5f5"];
+    IDLE [label="IDLE\n(Waiting for start)", style="rounded,filled", fillcolor="#e1f5e1"];
+    WATER_FILLING [label="WATER_FILLING\n(Filling water)", style="rounded,filled", fillcolor="#e3f2fd"];
+    ICE_FILLING [label="ICE_FILLING\n(Filling ice)", style="rounded,filled", fillcolor="#fff3e0"];
+    TOTE_READY [label="TOTE_READY\n(Tote complete)", style="rounded,filled", fillcolor="#f3e5f5"];
     
     IDLE -> WATER_FILLING [label="START pressed\n& weight valid"];
     WATER_FILLING -> ICE_FILLING [label="Water complete\n(4s timer)"];
@@ -63,66 +63,66 @@ digraph ControllerStates {
 }
 ```
 
-### Estados del Tote (ToteState) - Nueva Implementación
+### Tote States (ToteState) - New Implementation
 
 ```dot
 digraph ToteStates {
     rankdir=TB;
     node [shape=box, style=rounded];
     
-    IDLE [label="IDLE\n(Sistema en reposo)", style="rounded,filled", fillcolor="#e8e8e8"];
-    WAITING_START [label="WAITING_START\n(Esperando comando)", style="rounded,filled", fillcolor="#fff9c4"];
-    DISPENSING_WATER [label="DISPENSING_WATER\n(Dispensando agua)", style="rounded,filled", fillcolor="#b3e5fc"];
-    DISPENSING_ICE [label="DISPENSING_ICE\n(Dispensando hielo\nComando DOT a Silo)", style="rounded,filled", fillcolor="#b2ebf2"];
-    WAITING_TOTE_ID [label="WAITING_TOTE_ID\n(Esperando ID)", style="rounded,filled", fillcolor="#ffe0b2"];
-    COMPLETED [label="COMPLETED\n(Enviando a DB)", style="rounded,filled", fillcolor="#c8e6c9"];
-    CANCELED [label="CANCELED\n(Proceso cancelado)", style="rounded,filled", fillcolor="#ffccbc"];
-    ERROR [label="ERROR\n(Error del sistema)", style="rounded,filled", fillcolor="#ffcdd2"];
+    IDLE [label="IDLE\n(System at rest)", style="rounded,filled", fillcolor="#e8e8e8"];
+    WAITING_START [label="WAITING_START\n(Waiting for command)", style="rounded,filled", fillcolor="#fff9c4"];
+    DISPENSING_WATER [label="DISPENSING_WATER\n(Dispensing water)", style="rounded,filled", fillcolor="#b3e5fc"];
+    DISPENSING_ICE [label="DISPENSING_ICE\n(Dispensing ice\nDOT Command to Silo)", style="rounded,filled", fillcolor="#b2ebf2"];
+    WAITING_TOTE_ID [label="WAITING_TOTE_ID\n(Waiting for ID)", style="rounded,filled", fillcolor="#ffe0b2"];
+    COMPLETED [label="COMPLETED\n(Sending to DB)", style="rounded,filled", fillcolor="#c8e6c9"];
+    CANCELED [label="CANCELED\n(Process canceled)", style="rounded,filled", fillcolor="#ffccbc"];
+    ERROR [label="ERROR\n(System error)", style="rounded,filled", fillcolor="#ffcdd2"];
     
-    IDLE -> WAITING_START [label="Sistema listo"];
-    WAITING_START -> DISPENSING_WATER [label="START comando"];
-    DISPENSING_WATER -> DISPENSING_ICE [label="Agua completada\nTara aplicada"];
-    DISPENSING_ICE -> WAITING_TOTE_ID [label="Hielo completado\nComando STOP a Silo"];
-    WAITING_TOTE_ID -> COMPLETED [label="ID recibido vía Web"];
-    COMPLETED -> IDLE [label="Datos enviados a DB\nSistema reiniciado"];
+    IDLE -> WAITING_START [label="System ready"];
+    WAITING_START -> DISPENSING_WATER [label="START command"];
+    DISPENSING_WATER -> DISPENSING_ICE [label="Water completed\nTare applied"];
+    DISPENSING_ICE -> WAITING_TOTE_ID [label="Ice completed\nSTOP Command to Silo"];
+    WAITING_TOTE_ID -> COMPLETED [label="ID received via Web"];
+    COMPLETED -> IDLE [label="Data sent to DB\nSystem restarted"];
     
-    WAITING_START -> CANCELED [label="STOP presionado", color=red];
-    DISPENSING_WATER -> CANCELED [label="STOP presionado", color=red];
-    DISPENSING_ICE -> CANCELED [label="STOP presionado", color=red];
-    CANCELED -> IDLE [label="Sistema limpiado"];
+    WAITING_START -> CANCELED [label="STOP pressed", color=red];
+    DISPENSING_WATER -> CANCELED [label="STOP pressed", color=red];
+    DISPENSING_ICE -> CANCELED [label="STOP pressed", color=red];
+    CANCELED -> IDLE [label="System cleaned"];
     
-    WAITING_START -> ERROR [label="Error detectado", color=red];
-    DISPENSING_WATER -> ERROR [label="Error detectado", color=red];
-    DISPENSING_ICE -> ERROR [label="Error detectado", color=red];
-    ERROR -> IDLE [label="Error resuelto\nIntervención manual"];
+    WAITING_START -> ERROR [label="Error detected", color=red];
+    DISPENSING_WATER -> ERROR [label="Error detected", color=red];
+    DISPENSING_ICE -> ERROR [label="Error detected", color=red];
+    ERROR -> IDLE [label="Error resolved\nManual intervention"];
 }
 ```
 
-## 📊 Flujo del Proceso
+## 📊 Process Flow
 
 ```dot
 digraph ProcessFlow {
     rankdir=TB;
     node [shape=box, style=rounded];
     
-    start [label="Inicio", shape=ellipse, style=filled, fillcolor="#4CAF50"];
-    check_weight [label="Verificar peso\n(>5kg)", shape=diamond];
-    tare1 [label="Aplicar TARA\nGuardar peso tote"];
-    fill_water [label="Activar bomba agua\nEsperar 4 segundos"];
-    measure_water [label="Medir peso agua\nGuardar dato"];
-    tare2 [label="Aplicar TARA"];
-    ice_start [label="Enviar comando DOT START\na Silo Stir"];
-    fill_ice [label="Activar bomba hielo\nEsperar 4 segundos"];
-    ice_stop [label="Enviar comando DOT STOP\na Silo Stir"];
-    measure_ice [label="Medir peso hielo\nGuardar dato"];
-    wait_id [label="Esperar ID de tote\n(interfaz web)"];
-    send_db [label="Enviar datos a DB:\n- Tote ID\n- Peso tote\n- Peso agua\n- Peso hielo\n- Peso total"];
-    reset [label="Reset sistema\nAplicar TARA"];
-    end [label="Fin", shape=ellipse, style=filled, fillcolor="#f44336"];
+    start [label="Start", shape=ellipse, style=filled, fillcolor="#4CAF50"];
+    check_weight [label="Check weight\n(>5kg)", shape=diamond];
+    tare1 [label="Apply TARE\nSave tote weight"];
+    fill_water [label="Activate water pump\nWait 4 seconds"];
+    measure_water [label="Measure water weight\nSave data"];
+    tare2 [label="Apply TARE"];
+    ice_start [label="Send DOT START command\nto Silo Stir"];
+    fill_ice [label="Activate ice pump\nWait 4 seconds"];
+    ice_stop [label="Send DOT STOP command\nto Silo Stir"];
+    measure_ice [label="Measure ice weight\nSave data"];
+    wait_id [label="Wait for tote ID\n(web interface)"];
+    send_db [label="Send data to DB:\n- Tote ID\n- Tote weight\n- Water weight\n- Ice weight\n- Total weight"];
+    reset [label="Reset system\nApply TARE"];
+    end [label="End", shape=ellipse, style=filled, fillcolor="#f44336"];
     
     start -> check_weight;
-    check_weight -> tare1 [label="Peso válido"];
-    check_weight -> start [label="Peso < 5kg", color=red];
+    check_weight -> tare1 [label="Valid weight"];
+    check_weight -> start [label="Weight < 5kg", color=red];
     tare1 -> fill_water;
     fill_water -> measure_water;
     measure_water -> tare2;
@@ -137,55 +137,55 @@ digraph ProcessFlow {
 }
 ```
 
-## 🔌 Comunicación con Silo Stir
+## 🔌 Silo Stir Communication
 
-El sistema se comunica con la máquina Silo Stir mediante **comandos DOT** para controlar el dispensado de hielo:
+The system communicates with the Silo Stir machine using **DOT commands** to control ice dispensing:
 
-### Protocolo de Comandos DOT
+### DOT Command Protocol
 
-- **START ICE**: Pulso de 200ms en `DO_0` (ICE_PUMP HIGH → LOW)
-  - Inicia la dispensación de hielo desde el Silo Stir
+- **START ICE**: 200ms pulse on `DO_0` (ICE_PUMP HIGH → LOW)
+  - Starts ice dispensing from Silo Stir
   
-- **STOP ICE**: Pulso de 200ms en `DO_1` (ICE_STOP HIGH → LOW)
-  - Detiene la dispensación de hielo del Silo Stir
+- **STOP ICE**: 200ms pulse on `DO_1` (ICE_STOP HIGH → LOW)
+  - Stops ice dispensing from Silo Stir
 
-### Secuencia de Control
+### Control Sequence
 
 ```
-1. Sistema detecta Stage 2 (ICE_FILLING)
-2. Envía comando START → Silo Stir comienza dispensación
-3. Espera tiempo configurado (4 segundos por defecto)
-4. Envía comando STOP → Silo Stir detiene dispensación
-5. Mide peso final del hielo dispensado
+1. System detects Stage 2 (ICE_FILLING)
+2. Sends START command → Silo Stir begins dispensing
+3. Waits configured time (4 seconds default)
+4. Sends STOP command → Silo Stir stops dispensing
+5. Measures final weight of dispensed ice
 ```
 
-## 📡 Integración con Báscula Marel M2200
+## 📡 Marel M2200 Scale Integration
 
-### Protocolo de Comunicación
+### Communication Protocol
 
-El sistema se comunica con la báscula Marel M2200 vía **Ethernet TCP/IP** usando comandos propietarios:
+The system communicates with the Marel M2200 scale via **Ethernet TCP/IP** using proprietary commands:
 
-#### Comandos Disponibles
+#### Available Commands
 
-| Comando | Formato | Descripción | Ejemplo |
+| Command | Format | Description | Example |
 |---------|---------|-------------|---------|
-| **READ** | `.R<ID>:<dimension>\n` | Lee valor del modelo | `.R85:2\n` (peso) |
-| **WRITE** | `.W<ID>:<value>\n` | Escribe valor | `.W113:0.00\n` (tara) |
+| **READ** | `.R<ID>:<dimension>\n` | Reads model value | `.R85:2\n` (weight) |
+| **WRITE** | `.W<ID>:<value>\n` | Writes value | `.W113:0.00\n` (tare) |
 
 #### Model IDs
 
-- **WEIGHT_ID (85)**: Lectura de peso actual
-- **TARE_ID (113)**: Configuración de tara
+- **WEIGHT_ID (85)**: Current weight reading
+- **TARE_ID (113)**: Tare configuration
 
-#### Ejemplo de Respuesta
+#### Response Example
 
 ```
-Comando: .R85:2\n
-Respuesta: .D.85.2:76.40kg
+Command: .R85:2\n
+Response: .D.85.2:76.40kg
 Parsed: 76.40
 ```
 
-### Configuración de Red
+### Network Configuration
 
 ```cpp
 Server IP: 192.168.1.7
@@ -194,51 +194,51 @@ Client IP: 192.168.1.29
 MAC Address: DE:AD:BE:EF:FE:ED
 ```
 
-## 💾 Estructura de Datos
+## 💾 Data Structure
 
-### Estructura `tote_data`
+### `tote_data` Structure
 
 ```cpp
 typedef struct {
-  char id[32];              // ID único del tote
-  uint32_t water_out_kg;    // Peso del agua (kg)
-  uint32_t ice_out_kg;      // Peso del hielo (kg)
-  uint32_t tote_weight;     // Peso del tote vacío (kg)
-  uint32_t raw_weight;      // Peso total actual (kg)
+  char id[32];              // Unique tote ID
+  uint32_t water_out_kg;    // Water weight (kg)
+  uint32_t ice_out_kg;      // Ice weight (kg)
+  uint32_t tote_weight;     // Empty tote weight (kg)
+  uint32_t raw_weight;      // Current total weight (kg)
 } tote_data;
 ```
 
-### Datos Enviados a Base de Datos
+### Data Sent to Database
 
-Al completar un ciclo, el sistema recopila y prepara los siguientes datos para envío a la base de datos:
+When completing a cycle, the system collects and prepares the following data for database submission:
 
-- **Tote ID**: Identificador único ingresado vía interfaz web
-- **Peso del Tote Vacío**: Medido al inicio del proceso
-- **Peso del Agua**: Diferencia después del llenado de agua
-- **Peso del Hielo**: Diferencia después del llenado de hielo
-- **Peso Total**: Suma de todos los componentes
-- **Timestamp**: Fecha y hora del registro (futuro)
+- **Tote ID**: Unique identifier entered via web interface
+- **Empty Tote Weight**: Measured at process start
+- **Water Weight**: Difference after water filling
+- **Ice Weight**: Difference after ice filling
+- **Total Weight**: Sum of all components
+- **Timestamp**: Record date and time (future)
 
-## 🌐 Interfaz Web
+## 🌐 Web Interface
 
-### Funcionalidades
+### Features
 
-1. **Monitoreo en Tiempo Real**
-   - Visualización de peso actual vía WebSocket
-   - Actualización cada 200ms (si hay cambios)
-   - Estado del proceso
+1. **Real-Time Monitoring**
+   - Current weight display via WebSocket
+   - Update every 200ms (if changes)
+   - Process status
 
-2. **Ingreso de ID de Tote**
-   - Campo de entrada para ID único
-   - Validación (máx. 32 caracteres)
-   - Confirmación visual
+2. **Tote ID Input**
+   - Input field for unique ID
+   - Validation (max. 32 characters)
+   - Visual confirmation
 
-3. **Control Remoto** (futuro)
-   - Botones virtuales START/STOP
-   - Control manual de bombas
-   - Visualización de estados
+3. **Remote Control** (future)
+   - Virtual START/STOP buttons
+   - Manual pump control
+   - State visualization
 
-### Configuración WiFi
+### WiFi Configuration
 
 ```cpp
 SSID: MFP-Guest24
@@ -248,55 +248,55 @@ Hostname: tote-inbound
 
 ### Endpoints
 
-- `/`: Página principal
-- `/ws`: WebSocket para datos en tiempo real
-- OTA: Puerto 3232
+- `/`: Main page
+- `/ws`: WebSocket for real-time data
+- OTA: Port 3232
 
-## 🔧 Instalación y Configuración
+## 🔧 Installation and Configuration
 
-### Requisitos Previos
+### Prerequisites
 
-- ⚠️ **Git** instalado
-- ⚠️ **PlatformIO** instalado (extensión de VS Code o CLI)
-- ESP32 toolchain configurado
+- ⚠️ **Git** installed
+- ⚠️ **PlatformIO** installed (VS Code extension or CLI)
+- ESP32 toolchain configured
 
-### Pasos de Instalación
+### Installation Steps
 
-1. **Clonar el repositorio**
+1. **Clone the repository**
 ```bash
 git clone https://github.com/ayam-brand-IOT/Water_ice.git
 cd Water_ice
 git checkout new_structure
 ```
 
-2. **Abrir en PlatformIO**
+2. **Open in PlatformIO**
 ```bash
 code .
 ```
 
-3. **Configurar parámetros en `include/config.h`**
-   - Credenciales WiFi
-   - IP de la báscula Marel
-   - Parámetros de proceso
+3. **Configure parameters in `include/config.h`**
+   - WiFi credentials
+   - Marel scale IP
+   - Process parameters
 
-4. **Compilar y subir**
+4. **Compile and upload**
 ```bash
 pio run -t upload
 ```
 
-5. **Monitorear Serial**
+5. **Monitor Serial**
 ```bash
 pio device monitor -b 115200
 ```
 
-### Configuración de Red
+### Network Configuration
 
-Editar `include/config.h`:
+Edit `include/config.h`:
 
 ```cpp
 // WiFi
-#define U_SSID "TU_SSID"
-#define U_PASS "TU_PASSWORD"
+#define U_SSID "YOUR_SSID"
+#define U_PASS "YOUR_PASSWORD"
 
 // Marel M2200
 #define SERVER_IP "192.168.1.7"
@@ -304,71 +304,71 @@ Editar `include/config.h`:
 #define CLIENT_IP {192, 168, 1, 29}
 ```
 
-## 🎮 Uso del Sistema
+## 🎮 System Usage
 
-### Modo Automático
+### Automatic Mode
 
-1. Colocar tote vacío en la báscula
-2. Verificar que el peso sea > 5kg
-3. Presionar **START** (botón físico o comando serial `1`)
-4. El sistema ejecutará automáticamente:
-   - Llenado de agua (Stage 1)
-   - Llenado de hielo con comando a Silo Stir (Stage 2)
-   - Solicitud de ID de tote (Stage 3)
-5. Ingresar ID del tote en la interfaz web
-6. El sistema enviará datos a DB y volverá a IDLE
+1. Place empty tote on scale
+2. Verify weight is > 5kg
+3. Press **START** (physical button or serial command `1`)
+4. System will automatically execute:
+   - Water filling (Stage 1)
+   - Ice filling with Silo Stir command (Stage 2)
+   - Tote ID request (Stage 3)
+5. Enter tote ID in web interface
+6. System will send data to DB and return to IDLE
 
-### Modo Manual
+### Manual Mode
 
-- **Agua Manual**: Presionar botón `DI_2` o enviar `3` por serial (5 segundos)
-- **Hielo Manual**: Presionar botón `DI_3` o enviar `2` por serial (5 segundos)
-- **Detener**: Presionar botón `DI_1` o enviar `0` por serial
+- **Manual Water**: Press `DI_2` button or send `3` via serial (5 seconds)
+- **Manual Ice**: Press `DI_3` button or send `2` via serial (5 seconds)
+- **Stop**: Press `DI_1` button or send `0` via serial
 
-### Comandos Seriales
+### Serial Commands
 
-Enviar números por Serial a 115200 baud:
+Send numbers via Serial at 115200 baud:
 
-| Comando | Acción |
+| Command | Action |
 |---------|--------|
 | `0` | STOP |
 | `1` | START |
-| `2` | Hielo Manual (5s) |
-| `3` | Agua Manual (5s) |
+| `2` | Manual Ice (5s) |
+| `3` | Manual Water (5s) |
 
-## 📁 Estructura del Proyecto
+## 📁 Project Structure
 
 ```
 tote_inbound/
 ├── include/
-│   ├── config.h              # Configuración general del sistema
-│   └── Types.h               # Definiciones de estructuras y enums
+│   ├── config.h              # General system configuration
+│   └── Types.h               # Structure and enum definitions
 ├── lib/
-│   ├── DISPLAY/              # Librería de displays (no utilizada actualmente)
-│   └── SD/                   # Librería SD (no utilizada actualmente)
+│   ├── DISPLAY/              # Display library (not currently used)
+│   └── SD/                   # SD library (not currently used)
 ├── src/
-│   ├── main.cpp              # Loop principal y lógica de estados
-│   ├── main.h                # Declaraciones de funciones principales
-│   ├── marel.cpp             # Cliente Marel M2200
-│   ├── marel.h               # Header del cliente Marel
-│   ├── Stage.cpp             # Implementación de stages
-│   ├── Stage.h               # Clase Stage para manejo de etapas
+│   ├── main.cpp              # Main loop and state logic
+│   ├── main.h                # Main function declarations
+│   ├── marel.cpp             # Marel M2200 client
+│   ├── marel.h               # Marel client header
+│   ├── Stage.cpp             # Stage implementation
+│   ├── Stage.h               # Stage class for phase management
 │   └── hardware/
-│       ├── Controller.cpp    # Controlador principal del hardware
-│       ├── Controller.h      # Header del controlador
-│       ├── WIFI.cpp          # Gestión WiFi y WebServer
-│       ├── WIFI.h            # Header WiFi
+│       ├── Controller.cpp    # Main hardware controller
+│       ├── Controller.h      # Controller header
+│       ├── WIFI.cpp          # WiFi and WebServer management
+│       ├── WIFI.h            # WiFi header
 │       └── resources/
-│           ├── WebFiles.cpp  # Archivos HTML/CSS/JS embebidos
-│           └── WebFiles.h    # Header de recursos web
-├── platformio.ini            # Configuración de PlatformIO
-└── README.md                 # Este archivo
+│           ├── WebFiles.cpp  # Embedded HTML/CSS/JS files
+│           └── WebFiles.h    # Web resources header
+├── platformio.ini            # PlatformIO configuration
+└── README.md                 # This file
 ```
 
 ## 🔍 Debugging
 
-### Mensajes de Debug
+### Debug Messages
 
-El sistema imprime mensajes detallados por Serial:
+The system prints detailed messages via Serial:
 
 ```
 [Controller]: State changed from 0 to 1
@@ -380,9 +380,9 @@ Water: 15 kg
 Water filling completed
 ```
 
-### Monitoreo de Peso en Tiempo Real
+### Real-Time Weight Monitoring
 
-Conectarse a WebSocket en `ws://tote-inbound.local/ws` para recibir actualizaciones de peso:
+Connect to WebSocket at `ws://tote-inbound.local/ws` to receive weight updates:
 
 ```json
 {
@@ -391,76 +391,76 @@ Conectarse a WebSocket en `ws://tote-inbound.local/ws` para recibir actualizacio
 }
 ```
 
-## 🚀 Actualizaciones OTA
+## 🚀 OTA Updates
 
-El sistema soporta actualizaciones Over-The-Air:
+The system supports Over-The-Air updates:
 
-1. El dispositivo anuncia mDNS como `tote-inbound.local`
-2. Usar PlatformIO para subir firmware:
+1. Device announces mDNS as `tote-inbound.local`
+2. Use PlatformIO to upload firmware:
 ```bash
 pio run -t upload --upload-port tote-inbound.local
 ```
 
-## 📊 Próximas Implementaciones
+## 📊 Future Implementations
 
-### Base de Datos
+### Database
 
-- [ ] Implementar cliente HTTP/MQTT para envío de datos
-- [ ] Agregar timestamp RTC
-- [ ] Implementar cola de datos en caso de pérdida de conexión
-- [ ] Dashboard de visualización histórica
+- [ ] Implement HTTP/MQTT client for data submission
+- [ ] Add RTC timestamp
+- [ ] Implement data queue in case of connection loss
+- [ ] Historical visualization dashboard
 
-### Mejoras ToteState
+### ToteState Improvements
 
-- [ ] Completar la implementación de `handleToteState()`
-- [ ] Integrar con estados del controlador
-- [ ] Agregar manejo de errores específicos
-- [ ] Implementar timeouts por estado
+- [ ] Complete `handleToteState()` implementation
+- [ ] Integrate with controller states
+- [ ] Add specific error handling
+- [ ] Implement timeouts per state
 
-### Control Silo Stir
+### Silo Stir Control
 
-- [ ] Agregar confirmación de recepción de comandos DOT
-- [ ] Implementar feedback de estado del Silo
-- [ ] Control de flujo de hielo variable
+- [ ] Add DOT command reception confirmation
+- [ ] Implement Silo status feedback
+- [ ] Variable ice flow control
 
-## 🤝 Contribuciones
+## 🤝 Contributions
 
-Este proyecto es parte del sistema de automatización de la planta de procesamiento.
+This project is part of the plant processing automation system.
 
-**Desarrollador**: ayam-brand-IOT  
-**Repositorio**: Water_ice  
-**Branch Actual**: new_structure
+**Developer**: ayam-brand-IOT  
+**Repository**: Water_ice  
+**Current Branch**: new_structure
 
-## 📝 Notas Adicionales
+## 📝 Additional Notes
 
-- El sistema usa **TaskScheduler** para evitar delays bloqueantes
-- Las comunicaciones WiFi corren en un **Core separado** (Core 0)
-- La báscula Marel requiere **conexión Ethernet estable**
-- Los comandos DOT al Silo Stir son **pulsos de 200ms**
-- El sistema registra **tara automática** entre etapas para mediciones precisas
+- The system uses **TaskScheduler** to avoid blocking delays
+- WiFi communications run on a **separate Core** (Core 0)
+- Marel scale requires **stable Ethernet connection**
+- DOT commands to Silo Stir are **200ms pulses**
+- The system records **automatic tare** between stages for precise measurements
 
 ## 🐛 Troubleshooting
 
-### La báscula no responde
+### Scale not responding
 
-- Verificar conexión Ethernet (cable y switch)
-- Verificar IP de la báscula (ping 192.168.1.7)
-- Revisar timeout en `MarelClient` (5000ms)
+- Verify Ethernet connection (cable and switch)
+- Verify scale IP (ping 192.168.1.7)
+- Check timeout in `MarelClient` (5000ms)
 
-### WiFi no conecta
+### WiFi won't connect
 
-- Verificar credenciales en `config.h`
-- Verificar que el ESP32 esté en rango
-- Revisar serial para mensajes de error
+- Verify credentials in `config.h`
+- Verify ESP32 is in range
+- Check serial for error messages
 
-### Silo Stir no responde a comandos DOT
+### Silo Stir not responding to DOT commands
 
-- Verificar conexión de salidas digitales `DO_0` y `DO_1`
-- Verificar que los pulsos de 200ms sean suficientes
-- Revisar configuración del Silo Stir para aceptar comandos
+- Verify digital outputs connection `DO_0` and `DO_1`
+- Verify 200ms pulses are sufficient
+- Check Silo Stir configuration to accept commands
 
 ---
 
-**Versión**: 1.0.0  
-**Fecha**: Noviembre 2025  
+**Version**: 1.0.0  
+**Date**: November 2025  
 **Hardware**: EdgeBox ESP-100 + Marel M2200 + Silo Stir

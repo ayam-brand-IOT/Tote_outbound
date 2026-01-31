@@ -1,13 +1,13 @@
 # Tote Outbound - Backend Integration Guide
 
-## Integración con Backend
+## Backend Integration
 
-Este documento describe cómo el sistema **tote_outbound** se integra con el backend de gestión de totes.
+This document describes how the **tote_outbound** system integrates with the tote management backend.
 
-## Flujo de Integración
+## Integration Flow
 
-### 1. Prerequisito: Tote debe existir en Backend
-El tote debe haber sido creado previamente por el sistema **tote_inbound** usando:
+### 1. Prerequisite: Tote must exist in Backend
+The tote must have been previously created by the **tote_inbound** system using:
 ```
 POST /api/totes
 {
@@ -20,18 +20,18 @@ POST /api/totes
 }
 ```
 
-### 2. Proceso en Outbound
+### 2. Outbound Process
 
-#### a) Detección automática de pescado
-- Sistema en IDLE espera peso ≥ MIN_WEIGHT
-- Guarda `fish_kg` automáticamente
+#### a) Automatic fish detection
+- System in IDLE waits for weight ≥ MIN_WEIGHT
+- Saves `fish_kg` automatically
 
-#### b) Dispensado de hielo y agua
-- Dispensa hielo → guarda `ice_out_kg`
-- Llena agua → guarda `water_out_kg`
+#### b) Ice and water dispensing
+- Dispenses ice → saves `ice_out_kg`
+- Fills water → saves `water_out_kg`
 
-#### c) Validación de ID
-Cuando el operador ingresa el Tote ID, el sistema **valida contra el backend**:
+#### c) ID Validation
+When the operator enters the Tote ID, the system **validates against the backend**:
 
 ```cpp
 GET /api/totes/TOTE001
@@ -55,10 +55,10 @@ GET /api/totes/TOTE001
 }
 ```
 
-**Respuesta error (404)**: ID rechazado, sistema permanece esperando
+**Error response (404)**: ID rejected, system remains waiting
 
-#### d) Actualización de datos
-Si la validación es exitosa, envía los datos de salida:
+#### d) Data update
+If validation is successful, sends output data:
 
 ```cpp
 PUT /api/totes/TOTE001
@@ -70,7 +70,7 @@ PUT /api/totes/TOTE001
 }
 ```
 
-**Respuesta exitosa (200)**:
+**Successful response (200)**:
 ```json
 {
   "message": "Tote updated successfully",
@@ -89,31 +89,31 @@ PUT /api/totes/TOTE001
 }
 ```
 
-## Configuración
+## Configuration
 
 ### Backend URL
 
-Editar en `include/config.h`:
+Edit in `include/config.h`:
 
 ```cpp
-#define BACKEND_HOST "192.168.100.10"  // Cambiar a IP del backend
+#define BACKEND_HOST "192.168.100.10"  // Change to backend IP
 #define BACKEND_PORT 3000
 #define BACKEND_URL "http://" BACKEND_HOST ":3000"
 ```
 
-### Verificar Backend
+### Verify Backend
 
-Desde la terminal del ESP32 o desde la red:
+From ESP32 terminal or from network:
 
 ```bash
-# Verificar que el backend esté corriendo
+# Verify backend is running
 curl http://192.168.100.10:3000/api/totes
 
-# Verificar un tote específico
+# Verify a specific tote
 curl http://192.168.100.10:3000/api/totes/TOTE001
 ```
 
-## Funciones de Integración
+## Integration Functions
 
 ### validateToteIDFromBackend()
 
@@ -121,10 +121,10 @@ curl http://192.168.100.10:3000/api/totes/TOTE001
 bool validateToteIDFromBackend(const String& toteId)
 ```
 
-- **Propósito**: Verificar que el tote exista en el backend
-- **Retorna**: `true` si el tote existe, `false` si no existe o hay error
-- **Timeout**: 5 segundos
-- **Log**: Imprime detalles de la request y response
+- **Purpose**: Verify that the tote exists in the backend
+- **Returns**: `true` if tote exists, `false` if it doesn't exist or there's an error
+- **Timeout**: 5 seconds
+- **Log**: Prints request and response details
 
 ### updateToteInBackend()
 
@@ -138,14 +138,14 @@ bool updateToteInBackend(
 )
 ```
 
-- **Propósito**: Actualizar los datos del tote con valores de salida
-- **Retorna**: `true` si actualización exitosa, `false` en caso de error
-- **Timeout**: 10 segundos
-- **Log**: Imprime payload JSON y response
+- **Purpose**: Update tote data with output values
+- **Returns**: `true` if update successful, `false` in case of error
+- **Timeout**: 10 seconds
+- **Log**: Prints JSON payload and response
 
-## Ejemplo de Logs
+## Log Examples
 
-### Validación exitosa:
+### Successful validation:
 ```
 Validating Tote ID 'TOTE001' with backend...
 GET: http://192.168.100.10:3000/api/totes/TOTE001
@@ -155,7 +155,7 @@ Backend confirmed tote ID: TOTE001
 Tote ID validated successfully!
 ```
 
-### Validación fallida:
+### Failed validation:
 ```
 Validating Tote ID 'TOTE999' with backend...
 GET: http://192.168.100.10:3000/api/totes/TOTE999
@@ -165,7 +165,7 @@ ERROR: Tote ID not found in backend!
 Please check the ID and try again.
 ```
 
-### Actualización exitosa:
+### Successful update:
 ```
 === Updating Backend ===
 PUT: http://192.168.100.10:3000/api/totes/TOTE001
@@ -176,7 +176,7 @@ Backend updated successfully!
 ✓ Tote data sent to backend successfully!
 ```
 
-### Error de conexión:
+### Connection error:
 ```
 === Updating Backend ===
 PUT: http://192.168.100.10:3000/api/totes/TOTE001
@@ -186,72 +186,72 @@ HTTP PUT failed, error: connection refused
   Data will be lost. Please check backend connection.
 ```
 
-## Manejo de Errores
+## Error Handling
 
-### WiFi no conectado
-- Ambas funciones verifican `controller.isWiFiConnected()`
-- Si no hay conexión, retornan `false` inmediatamente
-- No intentan hacer requests HTTP
+### WiFi not connected
+- Both functions check `controller.isWiFiConnected()`
+- If no connection, return `false` immediately
+- Don't attempt HTTP requests
 
 ### Timeout
-- GET: 5 segundos
-- PUT: 10 segundos
-- Después del timeout, retorna `false`
+- GET: 5 seconds
+- PUT: 10 seconds
+- After timeout, returns `false`
 
-### Backend no disponible
-- Si el backend no responde o no está corriendo
-- El sistema muestra error pero **no bloquea** la operación
-- Los datos se pierden (TODO: implementar cola offline)
+### Backend not available
+- If backend doesn't respond or isn't running
+- System shows error but **doesn't block** the operation
+- Data is lost (TODO: implement offline queue)
 
-### ID no encontrado (404)
-- El sistema rechaza el ID
-- Permanece en estado WAITING_TOTE_ID
-- El operador debe ingresar un ID válido
+### ID not found (404)
+- System rejects the ID
+- Remains in WAITING_TOTE_ID state
+- Operator must enter a valid ID
 
 ## Troubleshooting
 
 ### "WiFi not connected, cannot validate ID"
-**Problema**: ESP32 no está conectado a WiFi
-**Solución**: 
-- Verificar credenciales WiFi en config.h
-- Verificar que la red esté disponible
-- Reiniciar el dispositivo
+**Problem**: ESP32 is not connected to WiFi
+**Solution**: 
+- Verify WiFi credentials in config.h
+- Verify network is available
+- Restart device
 
 ### "HTTP GET failed, error: connection refused"
-**Problema**: Backend no está corriendo o no es accesible
-**Solución**:
-- Verificar que Docker esté corriendo: `docker-compose ps`
-- Verificar IP del backend en config.h
-- Hacer ping al backend: `ping 192.168.100.10`
+**Problem**: Backend is not running or not accessible
+**Solution**:
+- Verify Docker is running: `docker-compose ps`
+- Verify backend IP in config.h
+- Ping backend: `ping 192.168.100.10`
 
 ### "Tote ID not found (404)"
-**Problema**: El tote no fue creado por el sistema inbound
-**Solución**:
-- Verificar que el inbound haya creado el tote primero
-- Consultar el backend: `curl http://BACKEND_IP:3000/api/totes/TOTE_ID`
-- Usar un ID válido que exista en el sistema
+**Problem**: Tote was not created by inbound system
+**Solution**:
+- Verify inbound created the tote first
+- Query backend: `curl http://BACKEND_IP:3000/api/totes/TOTE_ID`
+- Use a valid ID that exists in the system
 
 ### "Failed to send tote data to backend"
-**Problema**: Error al hacer PUT request
-**Solución**:
-- Verificar conectividad con el backend
-- Verificar logs del backend para ver el error
-- Los datos se pierden - considerar implementar cola offline
+**Problem**: Error making PUT request
+**Solution**:
+- Verify connectivity with backend
+- Check backend logs for error
+- Data is lost - consider implementing offline queue
 
-## Dependencias
+## Dependencies
 
-### Librerías requeridas
+### Required Libraries
 
-- `HTTPClient.h` - Cliente HTTP (incluido en ESP32)
-- `ArduinoJson.h` - Serialización/Deserialización JSON
+- `HTTPClient.h` - HTTP Client (included in ESP32)
+- `ArduinoJson.h` - JSON Serialization/Deserialization
 
-Ya están incluidas en `platformio.ini`:
+Already included in `platformio.ini`:
 ```ini
 lib_deps = 
     bblanchon/ArduinoJson@6.20.0
 ```
 
-## Integración Completa Inbound → Backend → Outbound
+## Complete Inbound → Backend → Outbound Integration
 
 ```
 ┌─────────────┐         ┌─────────────┐         ┌──────────────┐
@@ -281,11 +281,11 @@ lib_deps =
       │                        │                       │
 ```
 
-## TODO / Mejoras Futuras
+## TODO / Future Improvements
 
-- [ ] Implementar cola offline para sincronización posterior
-- [ ] Agregar reintentos automáticos en requests fallidos
-- [ ] Implementar lectura de temperatura real (temp_out)
-- [ ] Cachear lista de IDs válidos para validación más rápida
-- [ ] Agregar estadísticas de comunicación con backend
-- [ ] Implementar heartbeat con backend
+- [ ] Implement offline queue for later synchronization
+- [ ] Add automatic retries on failed requests
+- [ ] Implement real temperature reading (temp_out)
+- [ ] Cache list of valid IDs for faster validation
+- [ ] Add communication statistics with backend
+- [ ] Implement heartbeat with backend
