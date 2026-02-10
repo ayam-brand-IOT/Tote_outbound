@@ -473,14 +473,26 @@ void onStart() {
   
   if (current_weight >= MIN_WEIGHT) {
     Serial.println("\n=== Tote detected! ===");
-    Serial.print("Fish weight: ");
+    Serial.print("Total weight (fish + tote + residues): ");
     Serial.print(current_weight);
     Serial.println(" kg");
     
-    // Save fish weight
-    tote.fish_kg = current_weight;
+    // Calculate fish weight: current_weight - raw_kg (tote + ice + water from inbound)
+    if (tote.raw_kg > 0) {
+      tote.fish_kg = current_weight - tote.raw_kg;
+      Serial.print("Raw weight from inbound: ");
+      Serial.print(tote.raw_kg);
+      Serial.println(" kg");
+      Serial.print("Fish weight calculated: ");
+      Serial.print(tote.fish_kg);
+      Serial.println(" kg");
+    } else {
+      // Fallback if raw_kg was not obtained
+      tote.fish_kg = current_weight;
+      Serial.println("WARNING: raw_kg not available, using total weight as fish weight");
+    }
     
-    // Set tare for next measurement
+    // Set tare for next measurement (ice and water)
     controller.setTare();
     
     // Proceed to ice dispensing
@@ -614,6 +626,14 @@ bool validateToteIDFromBackend(const String& toteId) {
         const char* id = doc["tote"]["tote_id"];
         Serial.print("Backend confirmed tote ID: ");
         Serial.println(id);
+        
+        // Extract raw_kg from backend to calculate fish weight later
+        if (doc["tote"].containsKey("raw_kg")) {
+          tote.raw_kg = doc["tote"]["raw_kg"].as<uint32_t>();
+          Serial.print("Raw weight from inbound: ");
+          Serial.print(tote.raw_kg);
+          Serial.println(" kg");
+        }
       }
       
       http.end();
