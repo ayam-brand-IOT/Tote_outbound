@@ -48,10 +48,10 @@
 // #define U_PASS "cfpptest"
 
 // ##################### BACKEND API #####################
-#define BACKEND_HOST "192.168.100.62"  // IP del backend
+#define BACKEND_HOST "192.168.100.70"  // IP del backend
 #define BACKEND_PORT 3000
 #define BACKEND_WS_PORT 3001
-#define BACKEND_URL "http://192.168.100.62:3000"
+#define BACKEND_URL "http://192.168.100.70:3000"
 
 // ##################### WEB SERVER #####################
 
