@@ -39,22 +39,26 @@ bool MarelClient::isConnected() {
     return _initialized;
 }
 
-float MarelClient::registersToFloat(uint16_t low, uint16_t high) {
-    int32_t intValue = ((int32_t)high << 16) | low;
-    return intValue / 100.0;
+float MarelClient::registersToFloat(uint16_t reg0, uint16_t reg1) {
+    // CDAB word order - usar uint32_t como intermediario para preservar sign two's complement
+    uint32_t uraw = ((uint32_t)reg1 << 16) | (uint32_t)reg0;
+    int32_t  raw  = (int32_t)uraw;          // reinterpret como signed
+    float result  = (float)raw;
+    Serial.printf("  [Marel] Regs[%04X, %04X] raw=%ld → %.2f kg\n", reg0, reg1, raw, result);
+    return result;
 }
 
-void MarelClient::floatToRegisters(float value, uint16_t &low, uint16_t &high) {
-    int32_t intValue = (int32_t)(value * 100.0);
-    low = intValue & 0xFFFF;
-    high = (intValue >> 16) & 0xFFFF;
+void MarelClient::floatToRegisters(float value, uint16_t &reg0, uint16_t &reg1) {
+    int32_t raw = (int32_t)value;  // raw IS kg, no scaling
+    reg0 =  raw        & 0xFFFF;   // CDAB: reg0 = LOW word
+    reg1 = (raw >> 16) & 0xFFFF;   // CDAB: reg1 = HIGH word
 }
 
 float MarelClient::getWeightKg() {
     if (!_initialized) return 0.0;
     
     // Read registers 2-3 (Gross Weight)
-    if (!_mb.readHreg(_slaveID, REG_GROSS_WEIGHT_LOW, _weightRegs, 2)) {
+    if (!_mb.readHreg(_slaveID, REG_GROSS_WEIGHT, _weightRegs, 2)) {
         Serial.println("Error: Failed to queue read request for weight");
         return 0.0;
     }
@@ -75,7 +79,7 @@ float MarelClient::getNetWeightKg() {
     if (!_initialized) return 0.0;
     
     // Read registers 4-5 (Net Weight)
-    if (!_mb.readHreg(_slaveID, REG_NET_WEIGHT_LOW, _netWeightRegs, 2)) {
+    if (!_mb.readHreg(_slaveID, REG_NET_WEIGHT, _netWeightRegs, 2)) {
         Serial.println("Error: Failed to queue read request for net weight");
         return 0.0;
     }
@@ -96,7 +100,7 @@ float MarelClient::getTareKg() {
     if (!_initialized) return 0.0;
     
     // Read registers 6-7 (Tare Value)
-    if (!_mb.readHreg(_slaveID, REG_TARE_VALUE_LOW, _tareRegs, 2)) {
+    if (!_mb.readHreg(_slaveID, REG_TARE_VALUE, _tareRegs, 2)) {
         Serial.println("Error: Failed to queue read request for tare");
         return 0.0;
     }

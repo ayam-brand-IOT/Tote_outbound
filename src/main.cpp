@@ -4,6 +4,7 @@ Scheduler runner;
 Controller controller;
 TaskHandle_t detached_task;
 ToteWebSocketClient wsClient;  // WebSocket client instance
+BLEQRClient bleQRClient;       // BLE Central – connects to QR-Reader-OUT peripheral
 
 // Function prototypes
 void startICEPump();
@@ -54,6 +55,56 @@ Task broadcast_weight_routine(200, TASK_FOREVER, []() {
   }
 });
 
+// ── Indicator tasks ────────────────────────────────────────────────────────────
+// Ticks cada 250 ms; las distintas tasas de parpadeo se obtienen con módulo.
+//   INDICATOR_1 = estado del sistema   INDICATOR_2 = estado BLE QR reader
+Task indicator_task(250, TASK_FOREVER, []() {
+  static uint8_t tick = 0;
+  tick++;
+
+  // ── INDICATOR_1: Estado del sistema ───────────────────────────────────
+  uint8_t ind1 = LOW;
+  switch (toteState) {
+    case ToteState::IDLE:
+      ind1 = LOW;                              // Apagado
+      break;
+    case ToteState::DISPENSING_ICE:
+    case ToteState::DISPENSING_WATER:
+      ind1 = (tick % 2) ? HIGH : LOW;          // Parpadeo rápido 500 ms
+      break;
+    case ToteState::WAITING_TOTE_ID:
+      ind1 = (tick % 8 < 4) ? HIGH : LOW;     // Parpadeo lento 1 s
+      break;
+    case ToteState::COMPLETED:
+      ind1 = HIGH;                             // Encendido fijo
+      break;
+    case ToteState::CANCELED:
+    case ToteState::ERROR: {                   // Triple flash + 2 s OFF
+      uint8_t p = tick % 20;                  // Ciclo 5 s
+      ind1 = (p < 6 && p % 2 == 0) ? HIGH : LOW;
+      break;
+    }
+  }
+  controller.writeDigitalOutput(INDICATOR_1, ind1);
+
+  // ── INDICATOR_2: Estado BLE QR reader ─────────────────────────────
+  uint8_t ind2 = LOW;
+  switch (bleQRClient.getState()) {
+    case BLEQRState::CONNECTED:
+      ind2 = HIGH;                             // Encendido fijo: lector listo
+      break;
+    case BLEQRState::SCANNING:
+    case BLEQRState::CONNECTING:
+    case BLEQRState::LOST:
+      ind2 = (tick % 8 < 4) ? HIGH : LOW;     // Parpadeo lento: buscando
+      break;
+    default:                                   // IDLE: apagado
+      ind2 = LOW;
+      break;
+  }
+  controller.writeDigitalOutput(INDICATOR_2, ind2);
+});
+
 button_action stop_btn          = {STOP, STOP_IO, onStop};
 button_action start_btn         = {START, START_IO, onStart};
 button_action manual_ice_btn    = {MANUAL_ICE, MANUAL_ICE_IO, onManualIce};
@@ -77,15 +128,27 @@ void stopICEPump() {
 }
 
 void setup() {
-  for (auto &b : buttons) b.button.begin();
-
   controller.init();
+
+  for (auto &b : buttons) b.button.begin();
   controller.setUpWiFi(U_SSID, U_PASS, "tote-outbound");
-  controller.connectToWiFi(/* web_server */ false, /* web_serial */ true, /* OTA */ true);
+  controller.connectToWiFi(/* web_server */ true, /* web_serial */ true, /* OTA */ true);
   
   // Initialize WebSocket client
   wsClient.begin(BACKEND_HOST, BACKEND_WS_PORT, "/esp32");
   wsClient.setMessageCallback(onWebSocketMessage);
+
+  // Initialize BLE QR client – scans for "QR-Reader-OUT" peripheral
+  bleQRClient.begin([](const String& qr) -> bool {
+    if (qr == "NO_QR") {
+      Serial.println("[BLE-QR-OUT] No QR in reader buffer yet");
+      return false;
+    }
+    Serial.printf("[BLE-QR-OUT] QR received via BLE: %s\n", qr.c_str());
+    return setToteIdFromUI(qr);  // true = procesado → BLEQRClient enviará ACK
+  });
+
+  controller.setUpIOS();
 
   xTaskCreatePinnedToCore(communicationTask, "communicationTask", 12000, NULL, 1, &detached_task, 0);
 
@@ -96,11 +159,20 @@ void setup() {
   runner.addTask(auto_stop_ice_routine);
   runner.addTask(stop_water_routine);
   runner.addTask(broadcast_weight_routine);
+  runner.addTask(indicator_task);
   buttons_routine.enable();
   broadcast_weight_routine.enable();
+  indicator_task.enable();
 
-  delay(1000);
+  controller.setupPinMode(AO_0, GPIO_MODE_OUTPUT);
+  gpio_set_level((gpio_num_t)AO_0, HIGH);
+
+  controller.writeDigitalOutput(ICE_STOP, HIGH);
+  delay(500);
+  controller.writeDigitalOutput(ICE_STOP, LOW);
+
   Serial.println("Starting...");
+
 }
 
 void loop() {
@@ -109,6 +181,7 @@ void loop() {
 
   controller.task();   // Process Modbus communication
   wsClient.loop();     // Process WebSocket communication
+  bleQRClient.loop();  // Drive BLE scan / connect state machine
   runner.execute();
 
   handleToteState();
@@ -280,23 +353,35 @@ void onIceFilling() {
 
 void onWaitingToteID() {
   static uint32_t lastPrompt = 0;
-  
+
   // Show prompt every 3 seconds
   if (millis() - lastPrompt > 3000) {
+    const bool bleReady = bleQRClient.isConnected();
     Serial.println("\n╔════════════════════════════════════╗");
-    Serial.println("║   WAITING FOR TOTE ID FROM UI      ║");
+    Serial.println("║   WAITING FOR TOTE ID              ║");
     Serial.println("╠════════════════════════════════════╣");
     Serial.println("║ Fish:  " + String(tote.fish_kg) + " kg");
     Serial.println("║ Ice:   " + String(tote.ice_out_kg) + " kg");
     Serial.println("║ Water: " + String(tote.water_out_kg) + " kg");
     Serial.println("╠════════════════════════════════════╣");
-    Serial.println("║ Enter Tote ID via web interface   ║");
+    if (bleReady) {
+      Serial.println("║ [BLE]  QR-Reader-OUT conectado ✓   ║");
+      Serial.println("║        Leyendo QR automáticamente  ║");
+    } else {
+      Serial.println("║ [BLE]  QR-Reader-OUT no conectado  ║");
+    }
+    Serial.println("║ [WEB]  Captura con cámara del tel  ║");
     Serial.println("╚════════════════════════════════════╝\n");
+
+    // If BLE reader is connected, request the buffered QR every 3 s
+    if (bleReady) {
+      bleQRClient.requestQR();
+    }
+
     lastPrompt = millis();
   }
-  
-  // Transition to COMPLETED is done from setToteIdFromUI
-  // which validates the ID against backend before accepting it
+
+  // Transition to COMPLETED is handled by setToteIdFromUI() (BLE or web path)
 }
 
 void onToteReady() {

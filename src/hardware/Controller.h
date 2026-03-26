@@ -9,6 +9,7 @@
 #include "marel.h"
 #include "WIFI.h"
 #include "Types.h"
+#include "driver/gpio.h"
 #include <Preferences.h>
 #include "EdgeBox_ESP_100.h"
 
@@ -53,24 +54,24 @@ private:
     EdgeBox_ESP_100 edgebox;
     ControllerState state = IDLE;
 
-    const uint8_t outputs[2] = {WATER_PUMP, ICE_PUMP};
+    const uint8_t outputs[3] = {WATER_PUMP, ICE_PUMP, ICE_STOP};
 
-    void setUpIOS();
-    void setUpI2C();
+    void setUpI2C();    
+    void resetStrapedpins();
     void setUpDevice();
     void setUpDigitalInputs();
     void setUpDigitalOutputs();
-
-
-public:
+    
+    public:
     // ~Controller();
     // Controller(/* args */);
     WIFI wifi;
-
+    
     void init();
     void task();  // Procesar tareas del Modbus
     bool setTare();
     void setUpRTC();
+    void setUpIOS();
     
     void loopOTA();
     void WiFiLoop();
@@ -81,6 +82,7 @@ public:
     ControllerState getState();
     void setState(ControllerState state);
     bool readDigitalInput(uint8_t input);
+    void setupPinMode( uint8_t pin, gpio_mode_t mode);
     void writeDigitalOutput(uint8_t output, uint8_t value);
     void connectToWiFi(bool web_server, bool web_serial, bool OTA);
     void setUpWiFi(const char* ssid, const char* password, const char* hostname);

@@ -5,6 +5,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "websocket_client.h"
+#include "BLEQRClient.h"
 
 void onStop();
 void onStart();

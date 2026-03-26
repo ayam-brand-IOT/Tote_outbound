@@ -160,7 +160,13 @@ void WIFI::connectToWiFi(){
   WiFi.config(IP_ADDRESS, GATEWAY_ADDRESS, SUBNET_ADDRESS, IPAddress(8, 8, 8, 8));
   #endif
 
-  WiFi.begin(ssid, password);
+  // Si la contraseña está vacía, conectar a red abierta (sin contraseña)
+  if (strlen(password) == 0) {
+    DEBUG("Connecting to open WiFi network (no password)");
+    WiFi.begin(ssid);
+  } else {
+    WiFi.begin(ssid, password);
+  }
   uint32_t notConnectedCounter = 0;
   EEPROM.begin(32);
   while (WiFi.status() != WL_CONNECTED) {
@@ -234,7 +240,13 @@ bool WIFI::isConnected(){
 }
 
 void WIFI::reconnect(){
-  WiFi.begin(ssid, password);
+  // Si la contraseña está vacía, conectar a red abierta (sin contraseña)
+  if (strlen(password) == 0) {
+    DEBUG("Reconnecting to open WiFi network (no password)");
+    WiFi.begin(ssid);
+  } else {
+    WiFi.begin(ssid, password);
+  }
   uint8_t timeout = 0;
   vTaskDelay(2000 / portTICK_PERIOD_MS);
   while ( WiFi.status() != WL_CONNECTED ){

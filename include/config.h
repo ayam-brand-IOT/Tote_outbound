@@ -17,9 +17,12 @@
 #define MANUAL_WATER_IO         DI_2
 
 // ###################### OUTPUTS ######################
-#define ICE_PUMP                DO_0
-#define ICE_STOP                DO_1
+#define ICE_PUMP                DO_3
+#define ICE_STOP                DO_4
 #define WATER_PUMP              DO_2
+
+#define INDICATOR_1             DO_0
+#define INDICATOR_2             DO_1
 
 
 // #################### MAREL - INFO ####################
@@ -30,10 +33,12 @@
 #define MAREL_DE_RE_PIN         8           // GPIO8 (RS485_RTS)
 
 //Configuración de red WiFi
-#define HAS_STATIC_IP                               //TURN ON THE STATIC IP
-#define IP_ADDRESS { 192, 168, 100, 29 }
-#define GATEWAY_ADDRESS { 192, 168, 1, 254 }
+// #define HAS_STATIC_IP                               //TURN ON THE STATIC IP
+#define IP_ADDRESS { 192, 168, 99, 243 }
+#define GATEWAY_ADDRESS { 192, 168, 99, 254 }
 #define SUBNET_ADDRESS { 255, 255, 255, 0 }
+// MFP-Guest24: STA IP: 192.168.99.243, MASK: 255.255.255.0, GW: 192.168.99.253
+
 
 //TURN ON THE STATIC IP
 
@@ -41,11 +46,11 @@
 // #define U_SSID "MFP-Guest24"
 // #define U_PASS "testing123"
 
-#define U_SSID "Pez Gordo"
-#define U_PASS "SardinaMacarena2021"
+// #define U_SSID "Pez Gordo"
+// #define U_PASS "SardinaMacarena2021"
 
-// #define U_SSID "CFPP (Test)"
-// #define U_PASS "cfpptest"
+#define U_SSID "CFPP-Iot"
+#define U_PASS ""
 
 // ##################### BACKEND API #####################
 #define BACKEND_HOST "192.168.100.70"  // IP del backend

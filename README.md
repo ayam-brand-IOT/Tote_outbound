@@ -1,4 +1,4 @@
-# Tote Inbound - Tote Filling Control System
+# Tote Outbound - Tote Filling Control System
 
 Embedded automatic control system for filling totes with water and ice, with integration to Marel M2200 scale and communication with Silo Stir system for ice dispensing control.
 
@@ -439,7 +439,31 @@ This project is part of the plant processing automation system.
 - DOT commands to Silo Stir are **200ms pulses**
 - The system records **automatic tare** between stages for precise measurements
 
-## 🐛 Troubleshooting
+## � Visual Indicators
+
+Two LED indicators (DO_0 and DO_1) provide real-time status without needing a serial monitor:
+
+### INDICATOR_1 (DO_0) — System state
+
+| Pattern | State |
+|---|---|
+| OFF | `IDLE` — waiting for tote |
+| Fast blink (500 ms) | `DISPENSING_ICE` / `DISPENSING_WATER` — process active |
+| Slow blink (1 s) | `WAITING_TOTE_ID` — waiting for QR scan |
+| ON solid | `COMPLETED` — tote done |
+| Triple flash + 2 s OFF (5 s cycle) | `CANCELED` / `ERROR` — intervention required |
+
+### INDICATOR_2 (DO_1) — BLE QR reader state
+
+| Pattern | State |
+|---|---|
+| ON solid | `CONNECTED` — QR-Reader-OUT ready |
+| Slow blink (1 s) | `SCANNING` / `CONNECTING` / `LOST` — searching |
+| OFF | `IDLE` (not yet initialized) |
+
+Both indicators are driven by a non-blocking `indicator_task` (TaskScheduler, 250 ms tick) — no `delay()` involved.
+
+## �🐛 Troubleshooting
 
 ### Scale not responding
 

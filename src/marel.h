@@ -2,16 +2,13 @@
 #include <Arduino.h>
 #include <ModbusRTU.h>
 
-// Modbus addresses according to simulator
-// Holding Registers (40001-41020)
-#define REG_DISPLAY_WEIGHT_LOW      0      // 40001
-#define REG_DISPLAY_WEIGHT_HIGH     1      // 40002
-#define REG_GROSS_WEIGHT_LOW        2      // 40003
-#define REG_GROSS_WEIGHT_HIGH       3      // 40004
-#define REG_NET_WEIGHT_LOW          4      // 40005
-#define REG_NET_WEIGHT_HIGH         5      // 40006
-#define REG_TARE_VALUE_LOW          6      // 40007
-#define REG_TARE_VALUE_HIGH         7      // 40008
+// Modbus addresses - Marel M2200 Holding Registers (base address, reads 2 regs)
+// Word order: ABCD big-endian → addr N = HIGH word, addr N+1 = LOW word
+// Value encoding: int32 / 100 = kg
+#define REG_DISPLAY_WEIGHT      0      // 40001 (H) + 40002 (L)
+#define REG_GROSS_WEIGHT        2      // 40003 (H) + 40004 (L)
+#define REG_NET_WEIGHT          4      // 40005 (H) + 40006 (L)
+#define REG_TARE_VALUE          6      // 40007 (H) + 40008 (L)
 
 // Coils (00001-01016)
 #define COIL_WEIGHT_STABLE          1      // 00002
@@ -75,9 +72,6 @@ private:
     uint16_t _tareRegs[2];
     bool _readComplete;
     
-    // Convert two uint16_t registers to float
-    float registersToFloat(uint16_t low, uint16_t high);
-    
-    // Convert float to two uint16_t registers
-    void floatToRegisters(float value, uint16_t &low, uint16_t &high);
+    float registersToFloat(uint16_t reg0, uint16_t reg1);
+    void  floatToRegisters(float value, uint16_t &reg0, uint16_t &reg1);
 };
