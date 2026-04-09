@@ -1,5 +1,6 @@
 // #include "WiFiType.h"
 #include "WIFI.h"
+#include "../Settings.h"
 
 AsyncWebServer server(80);
 
@@ -118,6 +119,34 @@ void WIFI::setUpWebServer(bool brigeSerial){
     }
 
     request->send(200, "text/plain", "Tote registered successfully.");
+  });
+
+  // ======================== Settings ========================
+
+  server.on("/settings", HTTP_GET, [&](AsyncWebServerRequest *request) {
+    if (!checkAuth(request)) return;
+    String html = String(SETTINGS_HTML);
+    html.replace("{{ICE_KG}}",    String(Settings::getTargetIceKg(),   2));
+    html.replace("{{WATER_KG}}",  String(Settings::getTargetWaterKg(), 2));
+    html.replace("{{MIN_WEIGHT}}",String(Settings::getMinWeight(),     2));
+    html.replace("{{LOCATION}}",  String(hostname));
+    html.replace("{{VERSION}}",   String(VERSION));
+    request->send(200, "text/html", html);
+  });
+
+  server.on("/update_settings", HTTP_POST, [&](AsyncWebServerRequest *request) {
+    if (!checkAuth(request)) return;
+    if (!request->hasParam("ice_kg",   true) ||
+        !request->hasParam("water_kg", true) ||
+        !request->hasParam("min_w",    true)) {
+      request->send(400, "text/plain", "Missing parameters");
+      return;
+    }
+    const float ice   = request->getParam("ice_kg",   true)->value().toFloat();
+    const float water = request->getParam("water_kg", true)->value().toFloat();
+    const float minW  = request->getParam("min_w",    true)->value().toFloat();
+    Settings::save(ice, water, minW);
+    request->send(200, "text/plain", "Settings saved successfully.");
   });
 
 

@@ -140,7 +140,7 @@ const char* INDEX_HTML = R"rawliteral(
     <body>
       <div class="sidebar">
         <div class="icon">⚖️</div>
-        <!-- Puedes agregar más iconos aquí -->
+        <a href="/settings" style="color:#2563eb;font-size:1.5rem;text-decoration:none;margin-top:0.5rem;" title="Settings">⚙️</a>
       </div>
       <div class="container">
         <div class="card">
@@ -242,4 +242,112 @@ const char* INDEX_HTML = R"rawliteral(
     </body>
     </html>
     )rawliteral";
-    
+
+// ============================================================
+// Settings page — served at GET /settings
+// Placeholders: {{LOCATION}} {{VERSION}} {{ICE_KG}} {{WATER_KG}} {{MIN_WEIGHT}}
+// ============================================================
+const char* SETTINGS_HTML = R"rawliteral(
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+      <title>Settings — {{LOCATION}}</title>
+      <style>
+        body {
+          margin: 0; padding: 0;
+          font-family: 'Segoe UI', 'Arial', sans-serif;
+          background: #f4f6fa;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .card {
+          background: #fff;
+          border-radius: 20px;
+          box-shadow: 0 4px 24px #0001;
+          padding: 2rem 2.5rem 2.5rem 2.5rem;
+          min-width: 320px;
+          max-width: 400px;
+          width: 100%;
+        }
+        .title  { font-size: 1.6rem; color: #1a202c; text-align: center; margin-bottom: 0.3rem; font-weight: 600; }
+        .subtitle { color: #64748b; text-align: center; font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .form-label { color: #1e293b; font-weight: 500; margin-bottom: 0.4rem; display: block; }
+        .input {
+          width: 100%; font-size: 1.1rem; border-radius: 8px;
+          border: 1px solid #d1d5db; padding: 0.6rem 1rem;
+          margin-bottom: 1.2rem; outline: none;
+          box-sizing: border-box; transition: border 0.2s;
+        }
+        .input:focus { border: 1.7px solid #2563eb; }
+        .button {
+          width: 100%; background: #2563eb; color: #fff;
+          border: none; border-radius: 8px; font-size: 1.1rem;
+          font-weight: 600; padding: 0.75rem 0; cursor: pointer;
+          transition: background 0.18s; box-shadow: 0 2px 8px #2563eb22;
+        }
+        .button:active { background: #1740b6; }
+        .back-link {
+          display: block; text-align: center; color: #2563eb;
+          text-decoration: none; font-size: 0.95rem; margin-top: 1rem;
+        }
+        .status { margin-top: 1rem; padding: 0.7rem 0.5rem; text-align: center; border-radius: 8px; font-weight: 500; }
+        .status-success { background: #bbf7d0; color: #166534; border: 1.2px solid #16653444; }
+        .status-error   { background: #fecaca; color: #991b1b; border: 1.2px solid #991b1b44; }
+        .hint { color: #94a3b8; font-size: 0.82rem; margin-top: -0.8rem; margin-bottom: 1.2rem; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="title">⚙️ Settings</div>
+        <div class="subtitle">{{LOCATION}} &mdash; v{{VERSION}}</div>
+        <form id="settingsForm" autocomplete="off">
+          <label class="form-label" for="ice_kg">Target Ice (kg)</label>
+          <input id="ice_kg" name="ice_kg" class="input" type="number" step="0.1" min="0" required value="{{ICE_KG}}" />
+          <label class="form-label" for="water_kg">Target Water (kg)</label>
+          <input id="water_kg" name="water_kg" class="input" type="number" step="0.1" min="0" required value="{{WATER_KG}}" />
+          <label class="form-label" for="min_w">Minimum start weight (kg)</label>
+          <input id="min_w" name="min_w" class="input" type="number" step="0.1" min="0" required value="{{MIN_WEIGHT}}" />
+          <p class="hint">Changes take effect immediately and persist after reboot.</p>
+          <button type="submit" class="button">Save Settings</button>
+        </form>
+        <div id="statusMsg"></div>
+        <a class="back-link" href="/">&larr; Back to main page</a>
+      </div>
+      <script>
+        document.getElementById('settingsForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          const statusMsg = document.getElementById('statusMsg');
+          statusMsg.textContent = '';
+          statusMsg.className = '';
+          const data = new URLSearchParams({
+            ice_kg:   document.getElementById('ice_kg').value,
+            water_kg: document.getElementById('water_kg').value,
+            min_w:    document.getElementById('min_w').value
+          });
+          fetch('/update_settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: data
+          })
+          .then(async res => {
+            const text = await res.text();
+            if (!res.ok) throw new Error(text || 'Error saving settings.');
+            return text;
+          })
+          .then(msg => {
+            statusMsg.textContent = msg;
+            statusMsg.className = 'status status-success';
+          })
+          .catch(err => {
+            statusMsg.textContent = err.message || 'Error saving settings.';
+            statusMsg.className = 'status status-error';
+          });
+        });
+      </script>
+    </body>
+    </html>
+    )rawliteral";

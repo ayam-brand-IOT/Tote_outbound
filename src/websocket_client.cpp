@@ -289,6 +289,23 @@ bool ToteWebSocketClient::sendError(const char* message) {
     return true;
 }
 
+bool ToteWebSocketClient::sendSettingsCurrent(float ice_kg, float water_kg, float min_w) {
+    if (!isConnected) return false;
+    
+    StaticJsonDocument<192> doc;
+    doc["type"]     = "settings_current";
+    doc["station"]  = "outbound";
+    doc["ice_kg"]   = ice_kg;
+    doc["water_kg"] = water_kg;
+    doc["min_w"]    = min_w;
+    
+    String output;
+    serializeJson(doc, output);
+    webSocket.sendTXT(output);
+    Serial.printf("[WS] Settings broadcast: ice=%.2f water=%.2f min=%.2f\n", ice_kg, water_kg, min_w);
+    return true;
+}
+
 void ToteWebSocketClient::setMessageCallback(void (*callback)(String type, JsonDocument& doc)) {
     messageCallback = callback;
 }

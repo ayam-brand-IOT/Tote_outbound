@@ -40,6 +40,7 @@ public:
     bool sendIceDispensed(float ice_kg);
     bool sendWaterDispensed(float water_kg);
     bool sendError(const char* message);
+    bool sendSettingsCurrent(float ice_kg, float water_kg, float min_w);
     
     bool isClientConnected() { return isConnected; }
     void setMessageCallback(void (*callback)(String type, JsonDocument& doc));

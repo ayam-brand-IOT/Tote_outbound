@@ -24,6 +24,7 @@ enum ControllerState {
 enum class ToteState {
   IDLE,
   DISPENSING_ICE,
+  SETTLING_ICE,       // 5 s pause after ice: pumps off, scale settles
   DISPENSING_WATER,
   WAITING_TOTE_ID,
   COMPLETED,

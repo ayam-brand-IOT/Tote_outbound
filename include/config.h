@@ -43,20 +43,21 @@
 //TURN ON THE STATIC IP
 
 
-// #define U_SSID "MFP-Guest24"
-// #define U_PASS "testing123"
+#define U_SSID "MFP-Guest24"
+#define U_PASS "testing123"
 
 // #define U_SSID "Pez Gordo"
 // #define U_PASS "SardinaMacarena2021"
 
-#define U_SSID "CFPP-Iot"
-#define U_PASS ""
+// #define U_SSID "CFPP-Iot"
+// #define U_PASS ""
 
 // ##################### BACKEND API #####################
-#define BACKEND_HOST "192.168.100.70"  // IP del backend
+// #define BACKEND_HOST "192.168.100.25"  // IP del backend
+#define BACKEND_HOST "192.168.99.58"  // IP del backend
 #define BACKEND_PORT 3000
 #define BACKEND_WS_PORT 3001
-#define BACKEND_URL "http://192.168.100.70:3000"
+#define BACKEND_URL "http://192.168.99.58:3000"
 
 // ##################### WEB SERVER #####################
 
