@@ -6,9 +6,9 @@
 namespace Settings {
 
   static Preferences _prefs;
-  static float _iceKg    = (float)TARGET_ICE_KG;
-  static float _waterKg  = (float)TARGET_WATER_KG;
-  static float _minWeight= (float)MIN_WEIGHT;
+  static volatile float _iceKg    = (float)TARGET_ICE_KG;
+  static volatile float _waterKg  = (float)TARGET_WATER_KG;
+  static volatile float _minWeight= (float)MIN_WEIGHT;
 
   void load() {
     _prefs.begin("tote_cfg", /*readOnly=*/true);
