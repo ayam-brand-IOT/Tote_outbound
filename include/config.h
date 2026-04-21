@@ -33,15 +33,11 @@
 #define MAREL_DE_RE_PIN         8           // GPIO8 (RS485_RTS)
 
 //Configuración de red WiFi
-// #define HAS_STATIC_IP                               //TURN ON THE STATIC IP
-#define IP_ADDRESS { 192, 168, 99, 243 }
-#define GATEWAY_ADDRESS { 192, 168, 99, 254 }
+#define HAS_STATIC_IP                               //TURN ON THE STATIC IP
+#define IP_ADDRESS { 192, 168, 100, 22 }
+#define GATEWAY_ADDRESS { 192, 168, 100, 254 }
 #define SUBNET_ADDRESS { 255, 255, 255, 0 }
 // MFP-Guest24: STA IP: 192.168.99.243, MASK: 255.255.255.0, GW: 192.168.99.253
-
-
-//TURN ON THE STATIC IP
-
 
 // #define U_SSID "MFP-Guest24"
 // #define U_PASS "testing123"
@@ -53,11 +49,11 @@
 #define U_PASS ""
 
 // ##################### BACKEND API #####################
-#define BACKEND_HOST "192.168.100.25"  // IP del backend
+#define BACKEND_HOST "10.20.30.100"  // IP del backend
 // #define BACKEND_HOST "192.168.99.58"  // IP del backend
 #define BACKEND_PORT 3000
 #define BACKEND_WS_PORT 3001
-#define BACKEND_URL "http://192.168.100.25:3000"
+#define BACKEND_URL "http://" BACKEND_HOST ":3000"  // Conexión directa al backend
 
 // ##################### WEB SERVER #####################
 

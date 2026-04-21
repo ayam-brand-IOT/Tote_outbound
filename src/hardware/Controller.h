@@ -71,6 +71,7 @@ private:
     void init();
     void task();  // Procesar tareas del Modbus
     bool setTare();
+    void clearTare();
     void setUpRTC();
     void setUpIOS();
     

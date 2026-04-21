@@ -1,4 +1,5 @@
 #include "websocket_client.h"
+#include "Debug.h"
 
 // Static instance pointer for callback
 ToteWebSocketClient* ToteWebSocketClient::instance = nullptr;
@@ -14,7 +15,7 @@ ToteWebSocketClient::ToteWebSocketClient()
 }
 
 bool ToteWebSocketClient::begin(const char* host, uint16_t port, const char* path) {
-    Serial.printf("Connecting to WebSocket: ws://%s:%d%s\n", host, port, path);
+    LOG_WS("Connecting to WebSocket: ws://%s:%d%s\n", host, port, path);
     
     webSocket.begin(host, port, path);
     webSocket.onEvent(webSocketEventStatic);
@@ -42,12 +43,12 @@ void ToteWebSocketClient::webSocketEventStatic(WStype_t type, uint8_t * payload,
 void ToteWebSocketClient::webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     switch(type) {
         case WStype_DISCONNECTED:
-            Serial.println("[WS] Disconnected");
+            LOG_WS("[WS] Disconnected\n");
             isConnected = false;
             break;
             
         case WStype_CONNECTED: {
-            Serial.printf("[WS] Connected to url: %s\n", payload);
+            LOG_WS("[WS] Connected to url: %s\n", payload);
             isConnected = true;
             reconnectAttempts = 0;
             reconnectDelay = 1000;
@@ -65,20 +66,20 @@ void ToteWebSocketClient::webSocketEvent(WStype_t type, uint8_t * payload, size_
         }
             
         case WStype_TEXT:
-            Serial.printf("[WS] Received: %s\n", payload);
+            LOG_WS("[WS] Received: %s\n", payload);
             handleMessage(String((char*)payload));
             break;
             
         case WStype_ERROR:
-            Serial.println("[WS] Error");
+            LOG_WS("[WS] Error \n");
             break;
             
         case WStype_PING:
-            Serial.println("[WS] Ping received");
+            LOG_WS("[WS] Ping received \n");
             break;
             
         case WStype_PONG:
-            Serial.println("[WS] Pong received");
+            LOG_WS("[WS] Pong received \n");
             break;
     }
 }
@@ -88,29 +89,28 @@ void ToteWebSocketClient::handleMessage(String payload) {
     DeserializationError error = deserializeJson(doc, payload);
     
     if (error) {
-        Serial.print("[WS] JSON parse error: ");
-        Serial.println(error.c_str());
+        LOG_WS("[WS] JSON parse error: %s\n", error.c_str());
         return;
     }
     
     const char* type = doc["type"];
     if (!type) {
-        Serial.println("[WS] Message missing 'type' field");
+        LOG_WS("[WS] Message missing 'type' field\n");
         return;
     }
     
-    Serial.printf("[WS] Message type: %s\n", type);
+    LOG_WS("[WS] Message type: %s\n", type);
     
     // Handle heartbeat response
     if (strcmp(type, "heartbeat") == 0) {
-        Serial.println("[WS] Heartbeat acknowledged");
+        LOG_WS("[WS] Heartbeat acknowledged\n");
         return;
     }
     
     // Handle command messages
     if (strcmp(type, "command") == 0) {
         const char* command = doc["command"];
-        Serial.printf("[WS] Command received: %s\n", command);
+        LOG_WS("[WS] Command received: %s\n", command);
         
         // Call user callback if set
         if (messageCallback) {
@@ -122,7 +122,7 @@ void ToteWebSocketClient::handleMessage(String payload) {
     // Handle qr_scanned from browser
     if (strcmp(type, "qr_scanned") == 0) {
         const char* toteId = doc["toteId"];
-        Serial.printf("[WS] QR scanned from browser: %s\n", toteId);
+        LOG_WS("[WS] QR scanned from browser: %s\n", toteId);
         
         // Call user callback if set
         if (messageCallback) {
@@ -151,7 +151,7 @@ void ToteWebSocketClient::sendHeartbeat() {
 
 bool ToteWebSocketClient::sendWeight(float weight) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send weight");
+        LOG_WS("[WS] Not connected, cannot send weight\n");
         return false;
     }
     
@@ -164,14 +164,14 @@ bool ToteWebSocketClient::sendWeight(float weight) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Sent weight: %.2f kg\n", weight);
+    LOG_WS("[WS] Sent weight: %.2f kg\n", weight);
     
     return true;
 }
 
 bool ToteWebSocketClient::sendStateChange(const char* state) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send state");
+        LOG_WS("[WS] Not connected, cannot send state\n");
         return false;
     }
     
@@ -184,14 +184,14 @@ bool ToteWebSocketClient::sendStateChange(const char* state) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Sent state: %s\n", state);
+    LOG_WS("[WS] Sent state: %s\n", state);
     
     return true;
 }
 
 bool ToteWebSocketClient::sendToteValidated(const char* toteId) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send validation");
+        LOG_WS("[WS] Not connected, cannot send validation\n");
         return false;
     }
     
@@ -204,14 +204,14 @@ bool ToteWebSocketClient::sendToteValidated(const char* toteId) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Tote validated: %s\n", toteId);
+    LOG_WS("[WS] Tote validated: %s\n", toteId);
     
     return true;
 }
 
 bool ToteWebSocketClient::sendToteCompleted(const char* toteId) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send completion");
+        LOG_WS("[WS] Not connected, cannot send completion\n");
         return false;
     }
     
@@ -224,14 +224,14 @@ bool ToteWebSocketClient::sendToteCompleted(const char* toteId) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Tote completed: %s\n", toteId);
+    LOG_WS("[WS] Tote completed: %s\n", toteId);
     
     return true;
 }
 
 bool ToteWebSocketClient::sendIceDispensed(float ice_kg) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send ice dispensed");
+        LOG_WS("[WS] Not connected, cannot send ice dispensed\n");
         return false;
     }
     
@@ -244,14 +244,14 @@ bool ToteWebSocketClient::sendIceDispensed(float ice_kg) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Ice dispensed: %.2f kg\n", ice_kg);
+    LOG_WS("[WS] Ice dispensed: %.2f kg\n", ice_kg);
     
     return true;
 }
 
 bool ToteWebSocketClient::sendWaterDispensed(float water_kg) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send water dispensed");
+        LOG_WS("[WS] Not connected, cannot send water dispensed\n");
         return false;
     }
     
@@ -264,14 +264,14 @@ bool ToteWebSocketClient::sendWaterDispensed(float water_kg) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Water dispensed: %.2f kg\n", water_kg);
+    LOG_WS("[WS] Water dispensed: %.2f kg\n", water_kg);
     
     return true;
 }
 
 bool ToteWebSocketClient::sendError(const char* message) {
     if (!isConnected) {
-        Serial.println("[WS] Not connected, cannot send error");
+        LOG_WS("[WS] Not connected, cannot send error\n");
         return false;
     }
     
@@ -284,7 +284,7 @@ bool ToteWebSocketClient::sendError(const char* message) {
     serializeJson(doc, output);
     
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Error sent: %s\n", message);
+    LOG_WS("[WS] Error sent: %s\n", message);
     
     return true;
 }
@@ -302,7 +302,7 @@ bool ToteWebSocketClient::sendSettingsCurrent(float ice_kg, float water_kg, floa
     String output;
     serializeJson(doc, output);
     webSocket.sendTXT(output);
-    Serial.printf("[WS] Settings broadcast: ice=%.2f water=%.2f min=%.2f\n", ice_kg, water_kg, min_w);
+    LOG_WS("[WS] Settings broadcast: ice=%.2f water=%.2f min=%.2f\n", ice_kg, water_kg, min_w);
     return true;
 }
 

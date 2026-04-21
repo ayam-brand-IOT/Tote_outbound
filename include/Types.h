@@ -5,11 +5,11 @@
 
 typedef struct {
   char id[ID_SIZE];
-  uint32_t fish_kg;
-  uint32_t ice_out_kg;
-  uint32_t water_out_kg;
+  float fish_kg;
+  float ice_out_kg;
+  float water_out_kg;
   float initial_weight;  // Peso inicial antes de dispensar (para calcular deltas sin TARE)
-  uint32_t raw_kg;  // Peso bruto sin procesar del backend (si disponible)
+  float raw_kg;  // Peso bruto sin procesar del backend (si disponible)
 } tote_data;
 
 enum button_type {

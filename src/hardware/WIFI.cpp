@@ -1,25 +1,39 @@
 // #include "WiFiType.h"
 #include "WIFI.h"
 #include "../Settings.h"
+#include "../Debug.h"
 
 AsyncWebServer server(80);
 
 static void handle_update_progress_cb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-  if (!index){
+  static bool updateOk = false;
+
+  if (!index) {
+    updateOk = false;
     int cmd = (filename.indexOf("spiffs") > -1) ? U_SPIFFS : U_FLASH;
-    // Update.runAsync(true);
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+    size_t contentLen = request->contentLength();
+    if (!Update.begin(contentLen > 0 ? contentLen : UPDATE_SIZE_UNKNOWN, cmd)) {
       Update.printError(Serial);
+      return;
     }
+    updateOk = true;
+    LOG_WIFI("OTA update started: %s (%u bytes)\n", filename.c_str(), contentLen);
   }
+
+  if (!updateOk) return;
 
   if (Update.write(data, len) != len) {
     Update.printError(Serial);
+    updateOk = false;
+    return;
   }
 
   if (final) {
-    if (!Update.end(true)){
+    if (!Update.end(true)) {
       Update.printError(Serial);
+      updateOk = false;
+    } else {
+      LOG_WIFI("OTA update complete: %u bytes\n", index + len);
     }
   }
 }
@@ -163,12 +177,26 @@ void WIFI::setUpWebServer(bool brigeSerial){
     ESP.restart();
   });
 
+  server.on("/update", HTTP_POST, [&checkAuth]( AsyncWebServerRequest *request) {
+    if(!checkAuth(request)) return;
+    bool hasError = Update.hasError();
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", hasError ? "FAIL" : "OK");
+    response->addHeader("Connection", "close");
+    request->send(response);
+    if (!hasError) {
+      request->onDisconnect([]() {
+        vTaskDelay(200 / portTICK_PERIOD_MS);
+        ESP.restart();
+      });
+    }
+  }, handle_update_progress_cb);
+
   ws.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
                 void *arg, uint8_t *data, size_t len) {
     if (type == WS_EVT_CONNECT) {
-      Serial.println("WebSocket client connected");
+      LOG_WIFI("WebSocket client connected\n");
     } else if (type == WS_EVT_DISCONNECT) {
-      Serial.println("WebSocket client disconnected");
+      LOG_WIFI("WebSocket client disconnected\n");
     }
   });
 
@@ -178,7 +206,7 @@ void WIFI::setUpWebServer(bool brigeSerial){
 
 String WIFI::getIP(){
   String ip =  MDNS.queryHost("beer-control").toString();
-  Serial.println(ip);
+  LOG_WIFI("IP: %s\n", ip.c_str());
   return ip;
 }
 
@@ -234,9 +262,9 @@ void WIFI::setUpOTA(){
     }).onEnd([]() {
       logger.println("\nEnd");
     }).onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+      LOG_WIFI("Progress: %u%%\r", (progress / (total / 100)));
     }).onError([](ota_error_t error) {
-      Serial.printf("Error[%u]: ", error);
+      LOG_ERR("Error[%u]: ", error);
       if (error == OTA_AUTH_ERROR) logger.println("Auth Failed");
       else if (error == OTA_BEGIN_ERROR) logger.println("Begin Failed");
       else if (error == OTA_CONNECT_ERROR) logger.println("Connect Failed");
@@ -287,6 +315,7 @@ void WIFI::reconnect(){
 }
 
 void WIFI::DEBUG(const char *message){
+  if (!DEBUG_WIFI) return;
   char buffer[100];
   snprintf(buffer, sizeof(buffer), "[WIFI]: %s", message);
   logger.println(buffer);

@@ -2,6 +2,7 @@
 // Settings.cpp  —  NVS-persisted runtime configuration
 // ============================================================
 #include "Settings.h"
+#include "Debug.h"
 
 namespace Settings {
 
@@ -16,7 +17,7 @@ namespace Settings {
     _waterKg   = _prefs.getFloat("water_kg", (float)TARGET_WATER_KG);
     _minWeight = _prefs.getFloat("min_w",    (float)MIN_WEIGHT);
     _prefs.end();
-    Serial.printf("[Settings] Loaded  ice=%.2f kg  water=%.2f kg  min=%.2f kg\n",
+    LOG_MAIN("[Settings] Loaded  ice=%.2f kg  water=%.2f kg  min=%.2f kg\n",
                   _iceKg, _waterKg, _minWeight);
   }
 
@@ -29,7 +30,7 @@ namespace Settings {
     _prefs.putFloat("water_kg", waterKg);
     _prefs.putFloat("min_w",    minWeight);
     _prefs.end();
-    Serial.printf("[Settings] Saved   ice=%.2f kg  water=%.2f kg  min=%.2f kg\n",
+    LOG_MAIN("[Settings] Saved   ice=%.2f kg  water=%.2f kg  min=%.2f kg\n",
                   iceKg, waterKg, minWeight);
   }
 

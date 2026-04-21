@@ -1,4 +1,5 @@
 #include "marel.h"
+#include "Debug.h"
 
 MarelClient::MarelClient(uint8_t slaveID, uint8_t rxPin, uint8_t txPin, uint8_t dePin)
     : _slaveID(slaveID), _rxPin(rxPin), _txPin(txPin), _dePin(dePin), _initialized(false), _readComplete(false) {
@@ -24,8 +25,8 @@ void MarelClient::begin() {
     
     _initialized = true;
     
-    Serial.println("Modbus RTU Master initialized");
-    Serial.printf("Slave ID: %d, RX: GPIO%d, TX: GPIO%d, DE/RE: GPIO%d\n", 
+    LOG_MAREL("Modbus RTU Master initialized\n");
+    LOG_MAREL("Slave ID: %d, RX: GPIO%d, TX: GPIO%d, DE/RE: GPIO%d\n", 
                   _slaveID, _rxPin, _txPin, _dePin);
 }
 
@@ -44,7 +45,7 @@ float MarelClient::registersToFloat(uint16_t reg0, uint16_t reg1) {
     uint32_t uraw = ((uint32_t)reg1 << 16) | (uint32_t)reg0;
     int32_t  raw  = (int32_t)uraw;          // reinterpret como signed
     float result  = (float)raw;
-    Serial.printf("  [Marel] Regs[%04X, %04X] raw=%ld → %.2f kg\n", reg0, reg1, raw, result);
+    LOG_MAREL("  [Marel] Regs[%04X, %04X] raw=%ld → %.2f kg\n", reg0, reg1, raw, result);
     return result;
 }
 
@@ -59,7 +60,7 @@ float MarelClient::getWeightKg() {
     
     // Read registers 2-3 (Gross Weight)
     if (!_mb.readHreg(_slaveID, REG_GROSS_WEIGHT, _weightRegs, 2)) {
-        Serial.println("Error: Failed to queue read request for weight");
+        LOG_ERR("Failed to queue read request for weight\n");
         return 0.0;
     }
     
@@ -71,7 +72,7 @@ float MarelClient::getWeightKg() {
     }
     
     float weight = registersToFloat(_weightRegs[0], _weightRegs[1]);
-    Serial.printf("Modbus Read: Regs[%04X, %04X] = %.2f kg\n", _weightRegs[0], _weightRegs[1], weight);
+    LOG_MAREL("Modbus Read: Regs[%04X, %04X] = %.2f kg\n", _weightRegs[0], _weightRegs[1], weight);
     return weight;
 }
 
@@ -80,7 +81,7 @@ float MarelClient::getNetWeightKg() {
     
     // Read registers 4-5 (Net Weight)
     if (!_mb.readHreg(_slaveID, REG_NET_WEIGHT, _netWeightRegs, 2)) {
-        Serial.println("Error: Failed to queue read request for net weight");
+        LOG_ERR("Failed to queue read request for net weight\n");
         return 0.0;
     }
     
@@ -92,7 +93,7 @@ float MarelClient::getNetWeightKg() {
     }
     
     float netWeight = registersToFloat(_netWeightRegs[0], _netWeightRegs[1]);
-    Serial.printf("Modbus Read NET: Regs[%04X, %04X] = %.2f kg\n", _netWeightRegs[0], _netWeightRegs[1], netWeight);
+    LOG_MAREL("Modbus Read NET: Regs[%04X, %04X] = %.2f kg\n", _netWeightRegs[0], _netWeightRegs[1], netWeight);
     return netWeight;
 }
 
@@ -101,7 +102,7 @@ float MarelClient::getTareKg() {
     
     // Read registers 6-7 (Tare Value)
     if (!_mb.readHreg(_slaveID, REG_TARE_VALUE, _tareRegs, 2)) {
-        Serial.println("Error: Failed to queue read request for tare");
+        LOG_ERR("Failed to queue read request for tare\n");
         return 0.0;
     }
     
@@ -118,11 +119,11 @@ float MarelClient::getTareKg() {
 bool MarelClient::setTare() {
     if (!_initialized) return false;
     
-    Serial.println("Executing TARE command...");
+    LOG_MAREL("Executing TARE command...\n");
     
     // Write coil 1002 (COIL_TARE) = true
     if (!_mb.writeCoil(_slaveID, COIL_TARE, true)) {
-        Serial.println("Error: Failed to queue TARE command");
+        LOG_ERR("Failed to queue TARE command\n");
         return false;
     }
     
@@ -133,18 +134,18 @@ bool MarelClient::setTare() {
         yield();
     }
     
-    Serial.println("TARE command sent successfully");
+    LOG_MAREL("TARE command sent successfully\n");
     return true;
 }
 
 bool MarelClient::clearTare() {
     if (!_initialized) return false;
     
-    Serial.println("Executing CLEAR TARE command...");
+    LOG_MAREL("Executing CLEAR TARE command...\n");
     
     // Write coil 1003 (COIL_CLEAR_TARE) = true
     if (!_mb.writeCoil(_slaveID, COIL_CLEAR_TARE, true)) {
-        Serial.println("Error: Failed to queue CLEAR TARE command");
+        LOG_ERR("Failed to queue CLEAR TARE command\n");
         return false;
     }
     
@@ -155,18 +156,18 @@ bool MarelClient::clearTare() {
         yield();
     }
     
-    Serial.println("CLEAR TARE command sent successfully");
+    LOG_MAREL("CLEAR TARE command sent successfully\n");
     return true;
 }
 
 bool MarelClient::setZero() {
     if (!_initialized) return false;
     
-    Serial.println("Executing ZERO command...");
+    LOG_MAREL("Executing ZERO command...\n");
     
     // Write coil 1000 (COIL_ZERO) = true
     if (!_mb.writeCoil(_slaveID, COIL_ZERO, true)) {
-        Serial.println("Error: Failed to queue ZERO command");
+        LOG_ERR("Failed to queue ZERO command\n");
         return false;
     }
     
@@ -177,7 +178,7 @@ bool MarelClient::setZero() {
         yield();
     }
     
-    Serial.println("ZERO command sent successfully");
+    LOG_MAREL("ZERO command sent successfully\n");
     return true;
 }
 
@@ -188,7 +189,7 @@ bool MarelClient::isWeightStable() {
     
     // Read coil 1 (COIL_WEIGHT_STABLE)
     if (!_mb.readCoil(_slaveID, COIL_WEIGHT_STABLE, &stable, 1)) {
-        Serial.println("Error: Failed to queue read for weight stable flag");
+        LOG_ERR("Failed to queue read for weight stable flag\n");
         return false;
     }
     
@@ -204,7 +205,7 @@ bool MarelClient::isWeightStable() {
 
 bool MarelClient::cbRead(Modbus::ResultCode event, uint16_t transactionId, void* data) {
     if (event != Modbus::EX_SUCCESS) {
-        Serial.printf("Modbus read error: 0x%02X\n", event);
+        LOG_ERR("Modbus read error: 0x%02X\n", event);
         return false;
     }
     _readComplete = true;

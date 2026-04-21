@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "../Debug.h"
 
 // Configuración Modbus RTU para RS-485
 // Pines: RX=IO18 (U1RXD), TX=IO17 (U1TXD), DE/RE=IO8 (RS485_RTS)
@@ -79,7 +80,7 @@ void Controller::setState(ControllerState state){
   this->state = state;
   toteState = ToteState::DISPENSING_ICE;
   
-  DEBUG_M(("State changed from " + String((int)this->state) + " to " + String((int)state)).c_str());
+  LOG_CTRL("State changed from %d to %d\n", (int)state, (int)this->state);
 }
 
 ControllerState Controller::getState(){
@@ -92,20 +93,27 @@ void Controller::setUpDevice(){
 
 bool Controller::setTare(){
   marel.setTare();
+  // espérese 500ms para que la báscula procese el comando de tara antes de intentar leer el peso
+  vTaskDelay(500 / portTICK_PERIOD_MS);
   return true;
+}
+
+void Controller::clearTare(){
+  marel.clearTare();
+  vTaskDelay(500 / portTICK_PERIOD_MS);
 }
 
 float Controller::getWeight(){
   float weight = marel.getNetWeightKg(); // p.ej. "0.00" o "76.4" (peso neto = bruto - tara)
-  DEBUG_M(("Raw Weight: " + String(weight)).c_str());
+  LOG_CTRL("Raw Weight: %.2f\n", weight);
 
   if (isnan(weight)) {
-    DEBUG_M("Failed to get weight from Marel");
+    LOG_CTRL("Failed to get weight from Marel\n");
     return NAN;
   }
 
   // Muestra con 2 decimales sí o sí
-  Serial.printf("Parsed Weight: %.2f\n", weight); // o Serial.println(val, 2);
+  LOG_CTRL("Parsed Weight: %.2f\n", weight); // o Serial.println(val, 2);
   return weight;
 
 }
