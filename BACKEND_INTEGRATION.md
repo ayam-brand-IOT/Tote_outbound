@@ -15,22 +15,31 @@ POST /api/totes
   "tote_kg": 100,
   "water_kg": 50,
   "ice_kg": 30,
-  "raw_kg": 150,
-  "water_out_kg": 0
+  "raw_kg": 180
 }
 ```
 
 ### 2. Outbound Process
 
-#### a) Automatic fish detection
-- System in IDLE waits for weight ≥ MIN_WEIGHT
-- Saves `fish_kg` automatically
+#### a) Start and raw-weight capture
+- System in IDLE waits for START and verifies weight ≥ MIN_WEIGHT
+- Saves current `raw_kg` before outbound additions
+- Applies tare so water/ice dispensing deltas start from the current load
 
-#### b) Ice and water dispensing
-- Dispenses ice → saves `ice_out_kg`
-- Fills water → saves `water_out_kg`
+#### b) Water and ice dispensing
+- Fills water by weight target
+- Waits `DISPENSE_SETTLING_MS`, then saves final `water_out_kg`
+- Dispenses ice by weight with predictive STOP compensation
+- Waits `DISPENSE_SETTLING_MS`, then saves final `ice_out_kg`
+- Updates learned residual ice-tail compensation after each settled ice measurement
 
-#### c) ID Validation
+#### c) Pause / resume
+- START during `DISPENSING_WATER` or `DISPENSING_ICE` pauses the active dispenser and enters `PAUSED`.
+- START during `PAUSED` resumes the saved dispensing state.
+- START is ignored for pause purposes during `SETTLING_WATER`, `SETTLING_ICE`, `WAITING_TOTE_ID`, `COMPLETED`, `CANCELED`, and `ERROR`.
+- STOP cancels the cycle and performs cleanup.
+
+#### d) ID Validation
 When the operator enters the Tote ID, the system **validates against the backend**:
 
 ```cpp
@@ -57,13 +66,13 @@ GET /api/totes/TOTE001
 
 **Error response (404)**: ID rejected, system remains waiting
 
-#### d) Data update
+#### e) Data update
 If validation is successful, sends output data:
 
 ```cpp
 PUT /api/totes/TOTE001
 {
-  "fish_kg": 200,
+  "raw_kg": 200,
   "ice_out_kg": 20,
   "water_out_kg": 40,
   "temp_out": 0.0
@@ -79,8 +88,8 @@ PUT /api/totes/TOTE001
     "tote_kg": 100,
     "water_kg": 50,
     "ice_kg": 30,
-    "fish_kg": 200,
-    "raw_kg": 150,
+    "fish_kg": null,
+    "raw_kg": 200,
     "ice_out_kg": 20,
     "water_out_kg": 40,
     "temp_out": 0.0,
@@ -90,6 +99,22 @@ PUT /api/totes/TOTE001
 ```
 
 ## Configuration
+
+### Dispensing behavior
+
+Water and ice are controlled by weight, not by fixed dispensing time. Both final values are recorded after the pump/ice stop request and a settling delay:
+
+```cpp
+#define DISPENSE_SETTLING_MS 8000UL
+```
+
+Ice uses predictive compensation for residual auger discharge:
+
+```text
+stop_threshold = target_ice_kg - expected_ice_tail_kg
+```
+
+The learned `expected_ice_tail_kg` value is persisted in NVS as `ice_tail`.
 
 ### Backend URL
 
@@ -131,9 +156,9 @@ bool validateToteIDFromBackend(const String& toteId)
 ```cpp
 bool updateToteInBackend(
   const char* toteId, 
-  uint32_t fish_kg, 
-  uint32_t ice_out_kg, 
-  uint32_t water_out_kg, 
+  float raw_kg, 
+  float ice_out_kg, 
+  float water_out_kg, 
   float temp_out
 )
 ```
@@ -169,7 +194,7 @@ Please check the ID and try again.
 ```
 === Updating Backend ===
 PUT: http://192.168.100.10:3000/api/totes/TOTE001
-Payload: {"fish_kg":200,"ice_out_kg":20,"water_out_kg":40,"temp_out":0.0}
+Payload: {"raw_kg":200,"ice_out_kg":20,"water_out_kg":40,"temp_out":0.0}
 HTTP Response code: 200
 Response: {"message":"Tote updated successfully","tote":{...}}
 Backend updated successfully!
@@ -180,7 +205,7 @@ Backend updated successfully!
 ```
 === Updating Backend ===
 PUT: http://192.168.100.10:3000/api/totes/TOTE001
-Payload: {"fish_kg":200,"ice_out_kg":20,"water_out_kg":40,"temp_out":0.0}
+Payload: {"raw_kg":200,"ice_out_kg":20,"water_out_kg":40,"temp_out":0.0}
 HTTP PUT failed, error: connection refused
 ✗ Failed to send tote data to backend
   Data will be lost. Please check backend connection.
@@ -273,7 +298,7 @@ lib_deps =
       │                        │──────────────────────>│
       │                        │                       │
       │                        │  PUT /api/totes/:id   │
-      │                        │  {fish_kg,ice_out...} │
+      │                        │  {raw_kg,ice_out...}  │
       │                        │<──────────────────────│
       │                        │                       │
       │                        │  200 OK {updated}     │

@@ -9,6 +9,14 @@
 #define TARGET_ICE_KG 2.0    // Peso objetivo de hielo en kg
 #define TARGET_WATER_KG 2.0  // Peso objetivo de agua en kg
 
+// #################### ICE DISPENSING COMPENSATION ####################
+// The auger keeps dropping ice after STOP. Stop early by this learned tail.
+#define ICE_TAIL_KG_DEFAULT 9.0f
+#define ICE_TAIL_KG_MIN 0.0f
+#define ICE_TAIL_KG_MAX 20.0f
+#define ICE_TAIL_LEARN_ALPHA 0.20f
+#define DISPENSE_SETTLING_MS 8000UL
+
 // ###################### INPUTS ######################
 #define START_IO                DI_0
 #define STOP_IO                 DI_1
@@ -67,4 +75,3 @@
 #define www_password "admin"
 #define VERSION "1.0.0"
 #define SERVER_INDEX_HTML INDEX_HTML
-

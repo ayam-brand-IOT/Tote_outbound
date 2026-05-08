@@ -1,5 +1,6 @@
 #include "main.h"
 #include "Settings.h"
+#include "IceCompensation.h"
 #include "Debug.h"
 
 Scheduler runner;
@@ -12,6 +13,7 @@ BLEQRClient bleQRClient;       // BLE Central – connects to QR-Reader-OUT peri
 void startICEPump();
 void stopICEPump();
 void onSettlingIce();
+void onSettlingWater();
 
 // Stages
 Stage stage_1(2, initStage1, destroyStage1);
@@ -76,7 +78,11 @@ Task indicator_task(250, TASK_FOREVER, []() {
       ind1 = (tick % 2) ? HIGH : LOW;          // Parpadeo rápido 500 ms
       break;
     case ToteState::SETTLING_ICE:
+    case ToteState::SETTLING_WATER:
       ind1 = (tick % 4 < 2) ? HIGH : LOW;     // Parpadeo medio 1 s (bomba apagada, asentando)
+      break;
+    case ToteState::PAUSED:
+      ind1 = (tick % 12 < 2) ? HIGH : LOW;    // Destello corto: pausado
       break;
     case ToteState::WAITING_TOTE_ID:
       ind1 = (tick % 8 < 4) ? HIGH : LOW;     // Parpadeo lento 1 s
@@ -122,6 +128,7 @@ button_action buttons[] = { stop_btn, start_btn, manual_ice_btn, manual_water_bt
 uint32_t iceTimer = 0UL;
 uint32_t waterTimer = 0UL;
 tote_data tote = {0, 0, 0, 0, 0};
+static ToteState pausedToteState = ToteState::IDLE;
 
 void startICEPump() {
   controller.writeDigitalOutput(ICE_PUMP, HIGH);
@@ -131,6 +138,57 @@ void startICEPump() {
 void stopICEPump() {
   controller.writeDigitalOutput(ICE_STOP, HIGH);
   ice_stop_pulse.restartDelayed(200);
+}
+
+static const char* toteStateName(ToteState state) {
+  switch (state) {
+    case ToteState::DISPENSING_ICE: return "DISPENSING_ICE";
+    case ToteState::DISPENSING_WATER: return "DISPENSING_WATER";
+    case ToteState::SETTLING_ICE: return "SETTLING_ICE";
+    case ToteState::SETTLING_WATER: return "SETTLING_WATER";
+    case ToteState::WAITING_TOTE_ID: return "WAITING_TOTE_ID";
+    case ToteState::COMPLETED: return "COMPLETED";
+    case ToteState::PAUSED: return "PAUSED";
+    case ToteState::CANCELED: return "CANCELED";
+    case ToteState::ERROR: return "ERROR";
+    case ToteState::IDLE:
+    default: return "IDLE";
+  }
+}
+
+static void pauseCurrentDispense() {
+  pausedToteState = toteState;
+
+  if (pausedToteState == ToteState::DISPENSING_ICE) {
+    ice_start_pulse.cancel();
+    controller.writeDigitalOutput(ICE_PUMP, LOW);
+    stopICEPump();
+  } else if (pausedToteState == ToteState::DISPENSING_WATER) {
+    stop_water_routine.cancel();
+    controller.writeDigitalOutput(WATER_PUMP, LOW);
+  }
+
+  toteState = ToteState::PAUSED;
+  wsClient.sendStateChange("PAUSED");
+  LOG_MAIN("Dispensing paused from %s\n", toteStateName(pausedToteState));
+}
+
+static void resumePausedDispense() {
+  const ToteState resumeState = pausedToteState;
+
+  if (resumeState == ToteState::DISPENSING_ICE) {
+    startICEPump();
+  } else if (resumeState == ToteState::DISPENSING_WATER) {
+    controller.writeDigitalOutput(WATER_PUMP, HIGH);
+  } else {
+    LOG_MAIN("No dispensing state saved; cannot resume\n");
+    return;
+  }
+
+  pausedToteState = ToteState::IDLE;
+  toteState = resumeState;
+  wsClient.sendStateChange(toteStateName(toteState));
+  LOG_MAIN("Dispensing resumed: %s\n", toteStateName(toteState));
 }
 
 void setup() {
@@ -184,7 +242,6 @@ void setup() {
 
 void loop() {
   delay(20);
-  const ControllerState current_state = controller.getState();
 
   controller.task();   // Process Modbus communication
   wsClient.loop();     // Process WebSocket communication
@@ -192,25 +249,6 @@ void loop() {
   runner.execute();
 
   handleToteState();
-
-
-  // switch (current_state) {
-  //   case IDLE:
-  //     // FUCK off
-
-  //     break;  
-  //   case WATER_FILLING:
-  //     onWaterFilling();
-  //     break;
-  //   case ICE_FILLING:
-  //     onIceFilling();
-  //     break;
-  //   case TOTE_READY:
-  //     onToteReady();
-  //     break;
-  //   default:
-  //     break;
-  // }
 }
 
 void handleToteState(){
@@ -232,12 +270,19 @@ void handleToteState(){
       onWaterFilling();
       break;
 
+    case ToteState::SETTLING_WATER:
+      onSettlingWater();
+      break;
+
     case ToteState::WAITING_TOTE_ID:
       onWaitingToteID();
       break;
 
     case ToteState::COMPLETED:
       onToteReady();
+      break;
+
+    case ToteState::PAUSED:
       break;
 
     case ToteState::CANCELED:
@@ -264,32 +309,8 @@ void communicationTask(void* pvParameters) {
 }
 
 void onIDLE() {
-  // static uint32_t lastCheck = 0;
-  
-  // // Verificar peso cada 500ms
-  // if (millis() - lastCheck < 500) {
-  //   return;
-  // }
-  // lastCheck = millis();
-  
-  // const float current_weight = controller.getWeight();
-  
-  // if (current_weight >= MIN_WEIGHT) {
-  //   Serial.println("\n=== Tote detected! ===");
-  //   Serial.print("Fish weight: ");
-  //   Serial.print(current_weight);
-  //   Serial.println(" kg");
-    
-  //   // Save fish weight
-  //   tote.fish_kg = current_weight;
-    
-  //   // Set tare for next measurement
-  //   controller.setTare();
-    
-  //   // Proceed to ice dispensing
-  //   toteState = ToteState::DISPENSING_ICE;
-  //   Serial.println("Transitioning to DISPENSING_ICE");
-  // }
+  // In IDLE we wait for the START button
+  // Nothing to do here, START button calls onStart()
 }
 
 void onWaterFilling() {
@@ -302,26 +323,24 @@ void onWaterFilling() {
 
   else if (stage_1.getCurrentStep() == 1) {
     const float current_weight = controller.getWeight();
-    const float weight_delta = current_weight - tote.initial_weight;
 
-    if (weight_delta < Settings::getTargetWaterKg()) {
+    if (current_weight < Settings::getTargetWaterKg()) {
       static uint32_t lastPrint = 0;
       if (millis() - lastPrint > 500) {
-        LOG_MAIN("Water: %.2f / %.2f kg\r", weight_delta, Settings::getTargetWaterKg());
+        LOG_MAIN("Water: %.2f / %.2f kg\r", current_weight, Settings::getTargetWaterKg());
         lastPrint = millis();
       }
       return;
     }
-    LOG_MAIN("✓ Target water weight reached: %.2f kg\n", weight_delta);
+    LOG_MAIN("✓ Target water weight reached: %.2f kg\n", current_weight);
     stage_1.nextStep();
   }
 
   if (stage_1.getCurrentStep() == 2) {
     stage_1.destroy();
-    // After water, dispense ice
-    toteState = ToteState::DISPENSING_ICE;
-    wsClient.sendStateChange("DISPENSING_ICE");
-    LOG_MAIN("Transitioning to DISPENSING_ICE\n");
+    // Pause before ice: let residual water/scale motion settle.
+    toteState = ToteState::SETTLING_WATER;
+    LOG_MAIN("Transitioning to SETTLING_WATER (%lu ms debounce)\n", (unsigned long)DISPENSE_SETTLING_MS);
   }
 }
 
@@ -335,20 +354,20 @@ void onIceFilling() {
 
   else if (stage_2.getCurrentStep() == 1) {
     const float current_weight = controller.getWeight();
-    // weight_delta is cumulative (water + ice); subtract water to get ice only
-    const float weight_delta = current_weight - tote.initial_weight;
-    const float ice_delta = weight_delta - Settings::getTargetWaterKg();
-    const float target_total = Settings::getTargetWaterKg() + Settings::getTargetIceKg();
 
-    if (weight_delta < target_total) {
+    if (!IceCompensation::shouldRequestStop(current_weight)) {
       static uint32_t lastPrint = 0;
       if (millis() - lastPrint > 500) {
-        LOG_MAIN("Ice: %.2f / %.2f kg\r", ice_delta, Settings::getTargetIceKg());
+        LOG_MAIN("Ice: %.2f / %.2f kg (stop at %.2f kg)\r",
+                 current_weight,
+                 Settings::getTargetIceKg(),
+                 IceCompensation::getStopThresholdKg());
         lastPrint = millis();
       }
       return;
     }
-    LOG_MAIN("✓ Target ice weight reached: %.2f kg\n", ice_delta);
+    IceCompensation::recordStopRequest(current_weight);
+    LOG_MAIN("Predictive ice stop threshold reached: %.2f kg\n", current_weight);
     stage_2.nextStep();
   }
 
@@ -356,7 +375,28 @@ void onIceFilling() {
     stage_2.destroy();
     // Settling: let residual ice finish falling
     toteState = ToteState::SETTLING_ICE;
-    LOG_MAIN("Transitioning to SETTLING_ICE (8 s debounce)\n");
+    LOG_MAIN("Transitioning to SETTLING_ICE (%lu ms debounce)\n", (unsigned long)DISPENSE_SETTLING_MS);
+  }
+}
+
+void onSettlingWater() {
+  static uint32_t settleStart = 0;
+  if (settleStart == 0) {
+    settleStart = millis();
+    wsClient.sendStateChange("SETTLING_WATER");
+    LOG_MAIN("Settling: waiting %lu ms for water/scale to settle...\n", (unsigned long)DISPENSE_SETTLING_MS);
+  }
+  if (millis() - settleStart >= DISPENSE_SETTLING_MS) {
+    settleStart = 0;
+    const float water_settled = controller.getWeight();
+    LOG_MAIN("Water filled after settling: %.2f kg\n", water_settled);
+
+    tote.water_out_kg = water_settled;
+    wsClient.sendWaterDispensed(tote.water_out_kg);
+
+    toteState = ToteState::DISPENSING_ICE;
+    wsClient.sendStateChange("DISPENSING_ICE");
+    LOG_MAIN("Transitioning to DISPENSING_ICE\n");
   }
 }
 
@@ -365,10 +405,17 @@ void onSettlingIce() {
   if (settleStart == 0) {
     settleStart = millis();
     wsClient.sendStateChange("SETTLING_ICE");
-    LOG_MAIN("Settling: waiting 8 s for residual ice to stop falling...\n");
+    LOG_MAIN("Settling: waiting %lu ms for residual ice to stop falling...\n", (unsigned long)DISPENSE_SETTLING_MS);
   }
-  if (millis() - settleStart >= 8000UL) {
+  if (millis() - settleStart >= DISPENSE_SETTLING_MS) {
     settleStart = 0;  // reset for next cycle
+    const float ice_settled = controller.getWeight();
+    LOG_MAIN("Ice dispensed after settling: %.2f kg\n", ice_settled);
+
+    tote.ice_out_kg = ice_settled;
+    IceCompensation::learnFromSettledWeight(ice_settled);
+    wsClient.sendIceDispensed(tote.ice_out_kg);
+
     toteState = ToteState::WAITING_TOTE_ID;
     wsClient.sendStateChange("WAITING_TOTE_ID");
     LOG_MAIN("Transitioning to WAITING_TOTE_ID\n");
@@ -433,6 +480,7 @@ void onToteReady() {
 
 void onCanceled() {
   LOG_MAIN("Tote canceled, cleaning up...\n");
+  pausedToteState = ToteState::IDLE;
   
   // Stop pumps
   stopICEPump();
@@ -459,16 +507,16 @@ void onButtonPressed() {
 
 void initStage1() {
   LOG_MAIN("\n=== Stage 1: Filling Water ===\n");
-  // Save initial weight to calculate delta (workaround if TARE doesn't work)
   tote.initial_weight = controller.getWeight();
   LOG_MAIN("Initial weight saved: %.2f kg\n", tote.initial_weight);
-  controller.setTare();  // Try TARE anyway
+  controller.setTare();
   controller.writeDigitalOutput(WATER_PUMP, HIGH);
 }
 
 void initStage2() {
   LOG_MAIN("\n=== Stage 2: Dispensing Ice ===\n");
-  // Do NOT setTare here - weight is cumulative (water already dispensed)
+  IceCompensation::resetCycle();
+  controller.setTare();  // Zero out water weight so ice reads from zero
   startICEPump();
 }
 
@@ -478,36 +526,33 @@ void initStage3() {
 }
 
 void destroyStage1() {
-  // After TARE at start, getWeight() - initial_weight = water dispensed
-  const float water_out_kg = controller.getWeight() - tote.initial_weight;
-  LOG_MAIN("Water filled: %.2f kg\n", water_out_kg);
+  const float water_out_kg = controller.getWeight();
+  LOG_MAIN("Water at stop request: %.2f kg\n", water_out_kg);
 
   tote.water_out_kg = water_out_kg;
 
   controller.writeDigitalOutput(WATER_PUMP, LOW);
-
-  wsClient.sendWaterDispensed(tote.water_out_kg);
 
   LOG_MAIN("Water filling completed\n");
   LOG_MAIN("Stage 1 destroyed\n");
 }
 
 void destroyStage2() {
-  // Cumulative delta minus water already dispensed = ice only
-  const float ice_out_kg = controller.getWeight() - tote.initial_weight - tote.water_out_kg;
-  LOG_MAIN("Ice dispensed: %.2f kg\n", ice_out_kg);
+  const float ice_out_kg = controller.getWeight();
+  LOG_MAIN("Ice at stop request: %.2f kg\n", ice_out_kg);
 
   tote.ice_out_kg = ice_out_kg;
 
   stopICEPump();
-
-  wsClient.sendIceDispensed(tote.ice_out_kg);
 
   LOG_MAIN("Ice dispensing completed\n");
   LOG_MAIN("Stage 2 destroyed\n");
 } 
 
 void destroyStage3() {
+  // Reset the tare
+  controller.clearTare();
+  
   // Show all completed tote data
   LOG_MAIN("\n=== Tote Summary ===\n");
   LOG_MAIN("ID:    %s\n",   tote.id);
@@ -532,9 +577,7 @@ void destroyStage3() {
     LOG_ERR("✗ Failed to send tote data to backend\n");
     LOG_ERR("  Data will be lost. Please check backend connection.\n");
   }
-  
-  // Reset the tare
-  controller.clearTare();
+
   
   // Clear data for next tote
   tote = {0, 0, 0, 0, 0};
@@ -553,6 +596,16 @@ button_type handleInputs(button_type override){
 }
 
 void onStart() {
+  if (toteState == ToteState::DISPENSING_ICE || toteState == ToteState::DISPENSING_WATER) {
+    pauseCurrentDispense();
+    return;
+  }
+
+  if (toteState == ToteState::PAUSED) {
+    resumePausedDispense();
+    return;
+  }
+
   if (toteState != ToteState::IDLE) {
     LOG_MAIN("Already in process\n");
     return;
@@ -580,6 +633,7 @@ void onStart() {
 
 void onStop() {
   LOG_MAIN("\n=== STOP pressed ===\n");
+  pausedToteState = ToteState::IDLE;
   
   // Stop all pumps
   stopICEPump();
@@ -599,7 +653,7 @@ void onManualIce() {
 
 void onManualWater() {
   LOG_MAIN("Manual Water\n");
-  controller.writeDigitalOutput(WATER_PUMP, HIGH);
+  // controller.writeDigitalOutput(WATER_PUMP, HIGH);
   stop_water_routine.restartDelayed(5000);
   
 }

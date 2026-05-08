@@ -1,7 +1,7 @@
 #pragma once
 // ============================================================
 // Settings  —  NVS-persisted runtime configuration
-// Namespace: "tote_cfg"   Keys: ice_kg | water_kg | min_w
+// Namespace: "tote_cfg"   Keys: ice_kg | water_kg | min_w | ice_tail
 // ============================================================
 #include <Arduino.h>
 #include <Preferences.h>
@@ -24,4 +24,6 @@ namespace Settings {
   float getTargetIceKg();   ///< Target ice dispensing weight (kg)
   float getTargetWaterKg(); ///< Target water filling weight (kg)
   float getMinWeight();     ///< Minimum tote weight to begin cycle (kg)
+  float getExpectedIceTailKg(); ///< Expected residual ice after STOP (kg)
+  void  saveExpectedIceTailKg(float iceTailKg);
 }

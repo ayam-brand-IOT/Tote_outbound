@@ -10,15 +10,17 @@ namespace Settings {
   static volatile float _iceKg    = (float)TARGET_ICE_KG;
   static volatile float _waterKg  = (float)TARGET_WATER_KG;
   static volatile float _minWeight= (float)MIN_WEIGHT;
+  static volatile float _iceTailKg= (float)ICE_TAIL_KG_DEFAULT;
 
   void load() {
     _prefs.begin("tote_cfg", /*readOnly=*/true);
     _iceKg     = _prefs.getFloat("ice_kg",   (float)TARGET_ICE_KG);
     _waterKg   = _prefs.getFloat("water_kg", (float)TARGET_WATER_KG);
     _minWeight = _prefs.getFloat("min_w",    (float)MIN_WEIGHT);
+    _iceTailKg = _prefs.getFloat("ice_tail", (float)ICE_TAIL_KG_DEFAULT);
     _prefs.end();
-    LOG_MAIN("[Settings] Loaded  ice=%.2f kg  water=%.2f kg  min=%.2f kg\n",
-                  _iceKg, _waterKg, _minWeight);
+    LOG_MAIN("[Settings] Loaded  ice=%.2f kg  water=%.2f kg  min=%.2f kg  ice_tail=%.2f kg\n",
+                  _iceKg, _waterKg, _minWeight, _iceTailKg);
   }
 
   void save(float iceKg, float waterKg, float minWeight) {
@@ -37,5 +39,14 @@ namespace Settings {
   float getTargetIceKg()  { return _iceKg;    }
   float getTargetWaterKg(){ return _waterKg;   }
   float getMinWeight()    { return _minWeight; }
+  float getExpectedIceTailKg() { return _iceTailKg; }
+
+  void saveExpectedIceTailKg(float iceTailKg) {
+    _iceTailKg = iceTailKg;
+    _prefs.begin("tote_cfg", /*readOnly=*/false);
+    _prefs.putFloat("ice_tail", iceTailKg);
+    _prefs.end();
+    LOG_MAIN("[Settings] Saved ice_tail=%.2f kg\n", iceTailKg);
+  }
 
 } // namespace Settings

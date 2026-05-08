@@ -31,6 +31,8 @@ void destroyStage3();
 void onToteReady();
 void onIceFilling();
 void onWaterFilling();
+void onSettlingIce();
+void onSettlingWater();
 void readButtonTypeFromSerial();
 void communicationTask(void* pvParameters);
 

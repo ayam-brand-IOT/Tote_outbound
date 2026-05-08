@@ -53,8 +53,8 @@ digraph ControllerStates {
     TOTE_READY [label="TOTE_READY\n(Tote complete)", style="rounded,filled", fillcolor="#f3e5f5"];
     
     IDLE -> WATER_FILLING [label="START pressed\n& weight valid"];
-    WATER_FILLING -> ICE_FILLING [label="Water complete\n(4s timer)"];
-    ICE_FILLING -> TOTE_READY [label="Ice complete\n(4s timer)"];
+    WATER_FILLING -> ICE_FILLING [label="Water target reached\nsettling complete"];
+    ICE_FILLING -> TOTE_READY [label="Ice target reached\npredictive stop + settling"];
     TOTE_READY -> IDLE [label="Tote ID confirmed\n& data sent"];
     
     WATER_FILLING -> IDLE [label="STOP pressed", color=red];
@@ -71,27 +71,35 @@ digraph ToteStates {
     node [shape=box, style=rounded];
     
     IDLE [label="IDLE\n(System at rest)", style="rounded,filled", fillcolor="#e8e8e8"];
-    WAITING_START [label="WAITING_START\n(Waiting for command)", style="rounded,filled", fillcolor="#fff9c4"];
     DISPENSING_WATER [label="DISPENSING_WATER\n(Dispensing water)", style="rounded,filled", fillcolor="#b3e5fc"];
+    SETTLING_WATER [label="SETTLING_WATER\n(Water/scale settling)", style="rounded,filled", fillcolor="#d6eaf8"];
     DISPENSING_ICE [label="DISPENSING_ICE\n(Dispensing ice\nDOT Command to Silo)", style="rounded,filled", fillcolor="#b2ebf2"];
+    SETTLING_ICE [label="SETTLING_ICE\n(Residual ice/scale settling)", style="rounded,filled", fillcolor="#d1f2eb"];
     WAITING_TOTE_ID [label="WAITING_TOTE_ID\n(Waiting for ID)", style="rounded,filled", fillcolor="#ffe0b2"];
+    PAUSED [label="PAUSED\n(Operator correction)", style="rounded,filled", fillcolor="#e1bee7"];
     COMPLETED [label="COMPLETED\n(Sending to DB)", style="rounded,filled", fillcolor="#c8e6c9"];
     CANCELED [label="CANCELED\n(Process canceled)", style="rounded,filled", fillcolor="#ffccbc"];
     ERROR [label="ERROR\n(System error)", style="rounded,filled", fillcolor="#ffcdd2"];
     
-    IDLE -> WAITING_START [label="System ready"];
-    WAITING_START -> DISPENSING_WATER [label="START command"];
-    DISPENSING_WATER -> DISPENSING_ICE [label="Water completed\nTare applied"];
-    DISPENSING_ICE -> WAITING_TOTE_ID [label="Ice completed\nSTOP Command to Silo"];
+    IDLE -> DISPENSING_WATER [label="START command\nweight valid"];
+    DISPENSING_WATER -> SETTLING_WATER [label="Water target reached"];
+    SETTLING_WATER -> DISPENSING_ICE [label="Final water saved"];
+    DISPENSING_ICE -> SETTLING_ICE [label="Predictive ice stop"];
+    SETTLING_ICE -> WAITING_TOTE_ID [label="Final ice saved"];
     WAITING_TOTE_ID -> COMPLETED [label="ID received via Web"];
     COMPLETED -> IDLE [label="Data sent to DB\nSystem restarted"];
     
-    WAITING_START -> CANCELED [label="STOP pressed", color=red];
     DISPENSING_WATER -> CANCELED [label="STOP pressed", color=red];
     DISPENSING_ICE -> CANCELED [label="STOP pressed", color=red];
+    SETTLING_WATER -> CANCELED [label="STOP pressed", color=red];
+    SETTLING_ICE -> CANCELED [label="STOP pressed", color=red];
     CANCELED -> IDLE [label="System cleaned"];
+
+    DISPENSING_WATER -> PAUSED [label="START pressed"];
+    DISPENSING_ICE -> PAUSED [label="START pressed"];
+    PAUSED -> DISPENSING_WATER [label="START pressed\nresume water"];
+    PAUSED -> DISPENSING_ICE [label="START pressed\nresume ice"];
     
-    WAITING_START -> ERROR [label="Error detected", color=red];
     DISPENSING_WATER -> ERROR [label="Error detected", color=red];
     DISPENSING_ICE -> ERROR [label="Error detected", color=red];
     ERROR -> IDLE [label="Error resolved\nManual intervention"];
@@ -107,14 +115,14 @@ digraph ProcessFlow {
     
     start [label="Start", shape=ellipse, style=filled, fillcolor="#4CAF50"];
     check_weight [label="Check weight\n(>5kg)", shape=diamond];
-    tare1 [label="Apply TARE\nSave tote weight"];
-    fill_water [label="Activate water pump\nWait 4 seconds"];
-    measure_water [label="Measure water weight\nSave data"];
-    tare2 [label="Apply TARE"];
+    tare1 [label="Save raw weight\nApply TARE"];
+    fill_water [label="Activate water pump\nuntil water target"];
+    stop_water [label="Stop water pump"];
+    settle_water [label="Wait DISPENSE_SETTLING_MS\nmeasure final water"];
     ice_start [label="Send DOT START command\nto Silo Stir"];
-    fill_ice [label="Activate ice pump\nWait 4 seconds"];
+    fill_ice [label="Dispense ice by weight\npredictive stop threshold"];
     ice_stop [label="Send DOT STOP command\nto Silo Stir"];
-    measure_ice [label="Measure ice weight\nSave data"];
+    settle_ice [label="Wait DISPENSE_SETTLING_MS\nmeasure final ice"];
     wait_id [label="Wait for tote ID\n(web interface)"];
     send_db [label="Send data to DB:\n- Tote ID\n- Tote weight\n- Water weight\n- Ice weight\n- Total weight"];
     reset [label="Reset system\nApply TARE"];
@@ -124,13 +132,13 @@ digraph ProcessFlow {
     check_weight -> tare1 [label="Valid weight"];
     check_weight -> start [label="Weight < 5kg", color=red];
     tare1 -> fill_water;
-    fill_water -> measure_water;
-    measure_water -> tare2;
-    tare2 -> ice_start;
+    fill_water -> stop_water;
+    stop_water -> settle_water;
+    settle_water -> ice_start;
     ice_start -> fill_ice;
     fill_ice -> ice_stop;
-    ice_stop -> measure_ice;
-    measure_ice -> wait_id;
+    ice_stop -> settle_ice;
+    settle_ice -> wait_id;
     wait_id -> send_db;
     send_db -> reset;
     reset -> end;
@@ -152,12 +160,23 @@ The system communicates with the Silo Stir machine using **DOT commands** to con
 ### Control Sequence
 
 ```
-1. System detects Stage 2 (ICE_FILLING)
+1. System enters `DISPENSING_ICE`
 2. Sends START command → Silo Stir begins dispensing
-3. Waits configured time (4 seconds default)
+3. Monitors Marel weight and requests STOP when `current_ice + expected_tail >= target_ice`
 4. Sends STOP command → Silo Stir stops dispensing
-5. Measures final weight of dispensed ice
+5. Waits `DISPENSE_SETTLING_MS` so residual ice can fall
+6. Measures final ice weight and updates the learned tail estimate
 ```
+
+### Predictive Ice Compensation
+
+The auger keeps dropping ice after the STOP pulse. To compensate, the firmware stops before the target:
+
+```text
+stop_threshold = target_ice_kg - expected_ice_tail_kg
+```
+
+`expected_ice_tail_kg` starts at `ICE_TAIL_KG_DEFAULT` and is persisted in NVS as `ice_tail`. After each tote, the firmware compares the weight at STOP request with the settled final weight and updates the estimate with `ICE_TAIL_LEARN_ALPHA`.
 
 ## 📡 Marel M2200 Scale Integration
 
@@ -201,10 +220,11 @@ MAC Address: DE:AD:BE:EF:FE:ED
 ```cpp
 typedef struct {
   char id[32];              // Unique tote ID
-  uint32_t water_out_kg;    // Water weight (kg)
-  uint32_t ice_out_kg;      // Ice weight (kg)
-  uint32_t tote_weight;     // Empty tote weight (kg)
-  uint32_t raw_weight;      // Current total weight (kg)
+  float fish_kg;            // Reserved/legacy fish value
+  float ice_out_kg;         // Settled outbound ice weight (kg)
+  float water_out_kg;       // Settled outbound water weight (kg)
+  float initial_weight;     // Weight baseline before outbound additions
+  float raw_kg;             // Raw weight captured/updated for backend
 } tote_data;
 ```
 
@@ -213,10 +233,9 @@ typedef struct {
 When completing a cycle, the system collects and prepares the following data for database submission:
 
 - **Tote ID**: Unique identifier entered via web interface
-- **Empty Tote Weight**: Measured at process start
-- **Water Weight**: Difference after water filling
-- **Ice Weight**: Difference after ice filling
-- **Total Weight**: Sum of all components
+- **Raw Weight**: Captured before outbound additions and sent to backend
+- **Water Out Weight**: Settled outbound water weight after `SETTLING_WATER`
+- **Ice Out Weight**: Settled outbound ice weight after `SETTLING_ICE`
 - **Timestamp**: Record date and time (future)
 
 ## 🌐 Web Interface
@@ -312,11 +331,20 @@ Edit `include/config.h`:
 2. Verify weight is > 5kg
 3. Press **START** (physical button or serial command `1`)
 4. System will automatically execute:
-   - Water filling (Stage 1)
-   - Ice filling with Silo Stir command (Stage 2)
+   - Water filling by weight (Stage 1)
+   - Water settling and final water measurement
+   - Ice dispensing with Silo Stir command and predictive stop (Stage 2)
+   - Ice settling and final ice measurement
    - Tote ID request (Stage 3)
 5. Enter tote ID in web interface
 6. System will send data to DB and return to IDLE
+
+### Pause / Resume
+
+- Press **START** while in `DISPENSING_WATER` or `DISPENSING_ICE` to pause the active dispenser.
+- Press **START** again while in `PAUSED` to resume the same dispenser and continue from the current weight.
+- START does not pause during `SETTLING_WATER`, `SETTLING_ICE`, `WAITING_TOTE_ID`, `COMPLETED`, `CANCELED`, or `ERROR`.
+- STOP still cancels the active cycle and returns the system to `IDLE` after cleanup.
 
 ### Manual Mode
 
@@ -331,14 +359,14 @@ Send numbers via Serial at 115200 baud:
 | Command | Action |
 |---------|--------|
 | `0` | STOP |
-| `1` | START |
+| `1` | START / pause / resume |
 | `2` | Manual Ice (5s) |
 | `3` | Manual Water (5s) |
 
 ## 📁 Project Structure
 
 ```
-tote_inbound/
+tote_outbound/
 ├── include/
 │   ├── config.h              # General system configuration
 │   └── Types.h               # Structure and enum definitions
@@ -348,6 +376,8 @@ tote_inbound/
 ├── src/
 │   ├── main.cpp              # Main loop and state logic
 │   ├── main.h                # Main function declarations
+│   ├── IceCompensation.cpp   # Predictive ice stop and tail learning
+│   ├── IceCompensation.h     # Ice compensation API
 │   ├── marel.cpp             # Marel M2200 client
 │   ├── marel.h               # Marel client header
 │   ├── Stage.cpp             # Stage implementation
@@ -382,7 +412,7 @@ Water filling completed
 
 ### Real-Time Weight Monitoring
 
-Connect to WebSocket at `ws://tote-inbound.local/ws` to receive weight updates:
+Connect to WebSocket at `ws://tote-outbound.local/ws` to receive weight updates:
 
 ```json
 {
@@ -395,25 +425,26 @@ Connect to WebSocket at `ws://tote-inbound.local/ws` to receive weight updates:
 
 The system supports Over-The-Air updates:
 
-1. Device announces mDNS as `tote-inbound.local`
+1. Device announces mDNS as `tote-outbound.local`
 2. Use PlatformIO to upload firmware:
 ```bash
-pio run -t upload --upload-port tote-inbound.local
+pio run -t upload --upload-port tote-outbound.local
 ```
 
 ## 📊 Future Implementations
 
 ### Database
 
-- [ ] Implement HTTP/MQTT client for data submission
+- [x] Implement HTTP client for data submission
 - [ ] Add RTC timestamp
 - [ ] Implement data queue in case of connection loss
 - [ ] Historical visualization dashboard
 
 ### ToteState Improvements
 
-- [ ] Complete `handleToteState()` implementation
-- [ ] Integrate with controller states
+- [x] Complete `handleToteState()` implementation
+- [x] Add settling states for ice and water
+- [x] Add START pause/resume during dispensing states
 - [ ] Add specific error handling
 - [ ] Implement timeouts per state
 
@@ -421,6 +452,7 @@ pio run -t upload --upload-port tote-inbound.local
 
 - [ ] Add DOT command reception confirmation
 - [ ] Implement Silo status feedback
+- [x] Predictive ice stop compensation with learned residual tail
 - [ ] Variable ice flow control
 
 ## 🤝 Contributions
@@ -438,6 +470,8 @@ This project is part of the plant processing automation system.
 - Marel scale requires **stable Ethernet connection**
 - DOT commands to Silo Stir are **200ms pulses**
 - The system records **automatic tare** between stages for precise measurements
+- Ice and water final values are recorded after `DISPENSE_SETTLING_MS`, not immediately at pump stop
+- The learned ice residual tail is persisted in NVS as `ice_tail`
 
 ## � Visual Indicators
 
@@ -449,6 +483,8 @@ Two LED indicators (DO_0 and DO_1) provide real-time status without needing a se
 |---|---|
 | OFF | `IDLE` — waiting for tote |
 | Fast blink (500 ms) | `DISPENSING_ICE` / `DISPENSING_WATER` — process active |
+| Medium blink (1 s) | `SETTLING_ICE` / `SETTLING_WATER` — pump off, weight settling |
+| Short flash | `PAUSED` — dispenser stopped, START resumes |
 | Slow blink (1 s) | `WAITING_TOTE_ID` — waiting for QR scan |
 | ON solid | `COMPLETED` — tote done |
 | Triple flash + 2 s OFF (5 s cycle) | `CANCELED` / `ERROR` — intervention required |
